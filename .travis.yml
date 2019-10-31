@@ -18,7 +18,7 @@ before_script:
 
 script:
   - (cd /home/travis && wget https://github.com/pybind/pybind11/archive/v2.2.4.zip)
-  - (cd /home/travis && unzip v2.2.4.zip && python3 setup.py install)
+  - (cd /home/travis && unzip v2.2.4.zip && cd pybind11-2.2.4 && python3 setup.py install)
   - source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && python3 setup.py build
 
 branches:
