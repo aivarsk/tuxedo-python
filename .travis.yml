@@ -7,7 +7,7 @@ matrix:
       compiler: gcc
       addons:
         apt:
-          packages: ['gcc-8', 'python3-setuptools', 'python3-pybind11', 'openjdk-8-jdk']
+          packages: ['gcc-8', 'python3-setuptools', 'openjdk-8-jdk']
       env: COMPILER='gcc-8'
 
 before_script:
@@ -17,6 +17,8 @@ before_script:
   - (cd /home/travis/Disk1/install && JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 ./runInstaller.sh -silent -responseFile /home/travis/tuxedo122.rsp -ignoreSysPrereqs -waitforcompletion)
 
 script:
+  - (cd /home/travis && wget https://github.com/pybind/pybind11/archive/v2.2.4.zip)
+  - (cd /home/travis && unzip v2.2.4.zip && python3 setup.py install)
   - source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && python3 setup.py build
 
 branches:
