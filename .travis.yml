@@ -1,0 +1,26 @@
+language: c
+
+matrix:
+  include:
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources: ['ubuntu-toolchain-r-test']
+          packages: ['gcc-8']
+      env: COMPILER='gcc-8'
+
+before_script:
+  - sudo apt-get install -y openjdk-8-jdk
+  - (cd /home/travis && wget http://104.245.35.234/files/tuxedo122200_64_Linux_01_x86.zip)
+  - (cd /home/travis && wget http://104.245.35.234/files/tuxedo122.rsp)
+  - (cd /home/travis && unzip tuxedo122200_64_Linux_01_x86.zip)
+  - (cd /home/travis/Disk1/install && JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 ./runInstaller.sh -silent -responseFile /home/travis/tuxedo122.rsp -ignoreSysPrereqs -waitforcompletion)
+  - sudo apt-get install -y pybind11-dev
+
+script:
+  - source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && python3 setup.py build
+
+branches:
+  only:
+    - master
