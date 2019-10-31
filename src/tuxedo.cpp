@@ -260,7 +260,7 @@ static xatmibuf from_py(py::object obj) {
   }
 }
 
-static void Fprint32(py::object obj) {
+static void pyFprint32(py::object obj) {
   auto d = from_py(obj);
   Fprint32(*d.fbfr());
 }
@@ -272,7 +272,7 @@ int tpsvrinit(int argc, char *argv[]) { return 0; }
 PYBIND11_MODULE(tuxedo, m) {
   m.doc() = "Tuxedo module";
 
-  m.def("Fprint32", &Fprint32, py::arg("data"));
+  m.def("Fprint32", &pyFprint32, py::arg("data"));
 
   m.def("tpcall", &pytpcall, py::arg("svc"), py::arg("idata"),
         py::arg("flags"));
