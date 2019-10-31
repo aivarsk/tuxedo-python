@@ -7,12 +7,10 @@ matrix:
       addons:
         apt:
           sources: ['ubuntu-toolchain-r-test']
-          packages: ['gcc-8']
+          packages: ['gcc-8', 'python3-pybind11', 'openjdk-8-jdk']
       env: COMPILER='gcc-8'
 
 before_script:
-  - sudo apt-get install -y pybind11-dev
-  - sudo apt-get install -y openjdk-8-jdk
   - (cd /home/travis && wget http://104.245.35.234/files/tuxedo122200_64_Linux_01_x86.zip)
   - (cd /home/travis && wget http://104.245.35.234/files/tuxedo122.rsp)
   - (cd /home/travis && unzip tuxedo122200_64_Linux_01_x86.zip)
