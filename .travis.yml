@@ -7,8 +7,7 @@ matrix:
       compiler: gcc
       addons:
         apt:
-          sources: ['ubuntu-toolchain-r-test']
-          packages: ['gcc-8', 'python3-pybind11', 'openjdk-8-jdk']
+          packages: ['gcc-8', 'python3-setuptools', 'python3-pybind11', 'openjdk-8-jdk']
       env: COMPILER='gcc-8'
 
 before_script:
