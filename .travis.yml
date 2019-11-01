@@ -11,15 +11,14 @@ matrix:
       env: COMPILER='gcc-8'
 
 before_script:
+  - pip install pybind11
   - (cd /home/travis && wget http://104.245.35.234/files/tuxedo122200_64_Linux_01_x86.zip)
   - (cd /home/travis && wget http://104.245.35.234/files/tuxedo122.rsp)
   - (cd /home/travis && unzip tuxedo122200_64_Linux_01_x86.zip)
   - (cd /home/travis/Disk1/install && JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 ./runInstaller.sh -silent -responseFile /home/travis/tuxedo122.rsp -ignoreSysPrereqs -waitforcompletion)
 
 script:
-  - (cd /home/travis && wget https://github.com/pybind/pybind11/archive/v2.2.4.zip)
-  - (cd /home/travis && unzip v2.2.4.zip && cd pybind11-2.2.4 && sudo python3 setup.py install)
-  - source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && python3 setup.py build_ext --include-dirs /usr/local/include/python3.6/
+  - source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && python3 setup.py build
 
 branches:
   only:
