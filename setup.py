@@ -5,6 +5,8 @@ import glob
 import os
 import sys
 import setuptools
+import pybind11
+import sysconfig
 
 base_path = os.path.dirname(__file__)
 
@@ -13,13 +15,14 @@ ext_modules = [
         'tuxedo',
         glob.glob(os.path.join(base_path, 'src', '*.cpp')),
         include_dirs=[os.path.join(os.environ['TUXDIR'], 'include')],
-        library_dirs=[os.path.join(os.environ['TUXDIR'], 'lib')],
+        library_dirs=[os.path.join(os.environ['TUXDIR'], 'lib'),
+        sysconfig.get_path('include'), sysconfig.get_path('platinclude'),
+        pybind11.get_include(), pybind11.get_include(True)],
         libraries=['tux', 'fml32', 'tmib'],
         language='c++',
         undef_macros=["NDEBUG"],
     ),
 ]
-
 
 def has_flag(compiler, flagname):
     import tempfile
