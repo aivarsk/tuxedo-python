@@ -1,4 +1,5 @@
 #include <atmi.h>
+#include <userlog.h>
 #include <xa.h>
 #undef _
 #include <pybind11/pybind11.h>
@@ -6,6 +7,24 @@
 #include <map>
 
 namespace py = pybind11;
+
+class xatmi_exception : public std::exception {
+ public:
+  xatmi_exception(int err) : err(err), msg(tpstrerror(err)) {}
+  int err;
+  std::string msg;
+
+  const char *what() const noexcept override { return msg.c_str(); }
+};
+
+class fml32_exception : public std::exception {
+ public:
+  fml32_exception(int err) : err(err), msg(Fstrerror32(err)) {}
+  int err;
+  std::string msg;
+
+  const char *what() const noexcept override { return msg.c_str(); }
+};
 
 struct xatmibuf {
   xatmibuf() : p(nullptr), len(0) {}
@@ -41,7 +60,7 @@ struct xatmibuf {
 };
 
 static xatmibuf from_py(py::object obj);
-static py::object to_py(char *buf);
+static py::object to_py(xatmibuf buf);
 
 void PY(TPSVCINFO *) {}
 static int start(int argc, char **argv);
@@ -58,21 +77,20 @@ static py::object pytpforward(const std::string &svc, py::object data,
 static py::object pytpcall(const char *svc, py::object idata, long flags) {
   auto in = from_py(idata);
   xatmibuf out("FML32", 1024);
-
   int rc =
       tpcall(const_cast<char *>(svc), in.p, in.len, &out.p, &out.len, flags);
   if (rc == -1) {
     if (tperrno != TPESVCFAIL) {
-      throw std::runtime_error(tpstrerror(tperrno));
+      throw xatmi_exception(tperrno);
     }
   }
-  return py::make_tuple(tperrno, tpurcode, to_py(out.p));
+  return py::make_tuple(tperrno, tpurcode, to_py(std::move(out)));
 }
-//int tpcall(char *svc, char *idata, long ilen, char **odata, long \
-//   *olen, long flags)
+
+static void pyuserlog(const char *message) { userlog("%s", message); }
 
 static py::object to_py(FBFR32 *fbfr) {
-  FLDID32 fldid = FIRSTFLDID;
+  FLDID32 fieldid = FIRSTFLDID;
   FLDOCC32 oc = 0;
   py::dict result;
   py::list val;
@@ -82,10 +100,10 @@ static py::object to_py(FBFR32 *fbfr) {
     FLDLEN32 sendlen = sizeof(value);
     sendlen = sizeof(value);
 
-    int r = Fnext32(fbfr, &fldid, &oc, value, &sendlen);
+    int r = Fnext32(fbfr, &fieldid, &oc, value, &sendlen);
     if (r == -1) {
       if (Ferror32 != FNOSPACE) {
-        throw std::invalid_argument(Fstrerror32(Ferror32));
+        throw fml32_exception(Ferror32);
       }
     } else if (r == 0) {
       break;
@@ -94,18 +112,18 @@ static py::object to_py(FBFR32 *fbfr) {
     if (oc == 0) {
       val = py::list();
 
-      char *name = Fname32(fldid);
-      if (name == nullptr) {
+      char *name = Fname32(fieldid);
+      if (name != nullptr) {
         result[name] = val;
       } else {
         char tmpname[32];
-        snprintf(tmpname, sizeof(tmpname), "((FLDID32)%u)", fldid);
+        snprintf(tmpname, sizeof(tmpname), "((FLDID32)%u)", fieldid);
         result[tmpname] = val;
       }
     }
 
     char *ptr;
-    switch (Fldtype32(fldid)) {
+    switch (Fldtype32(fieldid)) {
       case FLD_CHAR:
         val.append(py::cast(value[0]));
         break;
@@ -122,44 +140,44 @@ static py::object to_py(FBFR32 *fbfr) {
         val.append(py::cast(*reinterpret_cast<double *>(value)));
         break;
       case FLD_STRING:
-        ptr = Ffind32(fbfr, fldid, oc, nullptr);
+        ptr = Ffind32(fbfr, fieldid, oc, nullptr);
         if (ptr == nullptr) {
-          throw std::invalid_argument(Fstrerror32(Ferror32));
+          throw fml32_exception(Ferror32);
         }
         val.append(py::str(ptr));
         break;
       case FLD_CARRAY:
-        ptr = Ffind32(fbfr, fldid, oc, &sendlen);
+        ptr = Ffind32(fbfr, fieldid, oc, &sendlen);
         if (ptr == nullptr) {
-          throw std::invalid_argument(Fstrerror32(Ferror32));
+          throw fml32_exception(Ferror32);
         }
         val.append(py::bytes(ptr, sendlen));
         break;
       case FLD_FML32:
-        ptr = Ffind32(fbfr, fldid, oc, nullptr);
+        ptr = Ffind32(fbfr, fieldid, oc, nullptr);
         if (ptr == nullptr) {
-          throw std::invalid_argument(Fstrerror32(Ferror32));
+          throw fml32_exception(Ferror32);
         }
         val.append(to_py(reinterpret_cast<FBFR32 *>(ptr)));
         break;
       default:
         throw std::invalid_argument("Unsupported field " +
-                                    std::to_string(fldid));
+                                    std::to_string(fieldid));
     }
   }
   return result;
 }
 
-static py::object to_py(char *data) {
+static py::object to_py(xatmibuf buf) {
   char type[8];
   char subtype[16];
-  if (tptypes(data, type, subtype) == -1) {
+  if (tptypes(buf.p, type, subtype) == -1) {
     throw std::invalid_argument("Invalid buffer type");
   }
   if (strcmp(type, "STRING") == 0) {
-    return py::cast(data);
+    return py::cast(buf.p);
   } else if (strcmp(type, "FML32") == 0) {
-    return to_py(reinterpret_cast<FBFR32 *>(data));
+    return to_py(reinterpret_cast<FBFR32 *>(buf.p));
   } else {
     throw std::invalid_argument("Unsupported buffer type");
   }
@@ -173,7 +191,7 @@ static void mutate(FBFR32 **fbfr, std::function<int(FBFR32 *)> f) {
         *fbfr = reinterpret_cast<FBFR32 *>(
             tprealloc(reinterpret_cast<char *>(*fbfr), Fsizeof32(*fbfr) * 2));
       } else {
-        throw std::runtime_error(Fstrerror32(Ferror32));
+        throw fml32_exception(Ferror32);
       }
     } else {
       break;
@@ -182,31 +200,31 @@ static void mutate(FBFR32 **fbfr, std::function<int(FBFR32 *)> f) {
 }
 
 static void from_py(py::dict obj, FBFR32 **fbfr);
-static void from_py1(FBFR32 **fbfr, FLDID32 fldid, FLDOCC32 oc, py::handle obj,
-                     FBFR32 **f) {
+static void from_py1(FBFR32 **fbfr, FLDID32 fieldid, FLDOCC32 oc,
+                     py::handle obj, FBFR32 **f) {
   if (py::isinstance<py::str>(obj)) {
     std::string val = obj.cast<py::str>();
     mutate(fbfr, [&](FBFR32 *fbfr) {
-      return CFchg32(fbfr, fldid, oc, const_cast<char *>(val.data()), 0,
+      return CFchg32(fbfr, fieldid, oc, const_cast<char *>(val.data()), 0,
                      FLD_STRING);
     });
   } else if (py::isinstance<py::int_>(obj)) {
     long val = obj.cast<py::int_>();
     mutate(fbfr, [&](FBFR32 *fbfr) {
-      return CFchg32(fbfr, fldid, oc, reinterpret_cast<char *>(&val), 0,
+      return CFchg32(fbfr, fieldid, oc, reinterpret_cast<char *>(&val), 0,
                      FLD_LONG);
     });
 
   } else if (py::isinstance<py::float_>(obj)) {
     double val = obj.cast<py::float_>();
     mutate(fbfr, [&](FBFR32 *fbfr) {
-      return CFchg32(fbfr, fldid, oc, reinterpret_cast<char *>(&val), 0,
+      return CFchg32(fbfr, fieldid, oc, reinterpret_cast<char *>(&val), 0,
                      FLD_DOUBLE);
     });
   } else if (py::isinstance<py::dict>(obj)) {
     from_py(obj.cast<py::dict>(), f);
     mutate(fbfr, [&](FBFR32 *fbfr) {
-      return Fchg32(fbfr, fldid, oc, reinterpret_cast<char *>(*f), 0);
+      return Fchg32(fbfr, fieldid, oc, reinterpret_cast<char *>(*f), 0);
     });
   } else {
     throw std::invalid_argument("Unsupported type");
@@ -227,18 +245,18 @@ static void from_py(py::dict obj, FBFR32 **fbfr) {
   xatmibuf f;
 
   for (auto it : obj) {
-    FLDID32 fldid =
+    FLDID32 fieldid =
         Fldid32(const_cast<char *>(std::string(py::str(it.first)).c_str()));
 
     py::handle o = it.second;
     if (py::isinstance<py::list>(o)) {
       FLDOCC32 oc = 0;
       for (auto e : o.cast<py::list>()) {
-        from_py1(fbfr, fldid, oc++, e, f.fbfr());
+        from_py1(fbfr, fieldid, oc++, e, f.fbfr());
       }
     } else {
       // Handle single elements instead of lists for convenience
-      from_py1(fbfr, fldid, 0, o, f.fbfr());
+      from_py1(fbfr, fieldid, 0, o, f.fbfr());
     }
   }
 }
@@ -265,14 +283,19 @@ static void pyFprint32(py::object obj) {
   Fprint32(*d.fbfr());
 }
 
-static py::object _roundtrip(py::object obj) { return obj; }
+static py::object _roundtrip(py::object obj) { return to_py(from_py(obj)); }
 
 int tpsvrinit(int argc, char *argv[]) { return 0; }
 
 PYBIND11_MODULE(tuxedo, m) {
   m.doc() = "Tuxedo module";
 
+  static py::exception<xatmi_exception> exc(m, "XatmiException");
+
+  m.def("userlog", &pyuserlog, py::arg("message"));
+
   m.def("Fprint32", &pyFprint32, py::arg("data"));
+  m.def("_roundtrip", &_roundtrip, py::arg("data"));
 
   m.def("tpcall", &pytpcall, py::arg("svc"), py::arg("idata"),
         py::arg("flags"));

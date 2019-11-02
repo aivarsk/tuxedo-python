@@ -51,7 +51,7 @@ def best_cpp(compiler):
 class BuildExt(build_ext):
     def build_extensions(self):
         for ext in self.extensions:
-            ext.extra_compile_args = [best_cpp(self.compiler)]
+            ext.extra_compile_args = [best_cpp(self.compiler), '-fvisibility=hidden']
         build_ext.build_extensions(self)
 
 class PyTest(TestCommand):
