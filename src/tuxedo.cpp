@@ -2,11 +2,15 @@
 #include <userlog.h>
 #include <xa.h>
 #undef _
+#include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <functional>
 #include <map>
 
 namespace py = pybind11;
+
+static py::object server;
 
 class xatmi_exception : public std::exception {
  public:
@@ -27,8 +31,9 @@ class fml32_exception : public std::exception {
 };
 
 struct xatmibuf {
-  xatmibuf() : p(nullptr), len(0) {}
-  xatmibuf(const char *type, long len) : p(nullptr), len(len) {
+  xatmibuf() : p(nullptr), pp(&p), len(0) {}
+  xatmibuf(TPSVCINFO *svcinfo) : p(nullptr), pp(&svcinfo->data), len(0) {}
+  xatmibuf(const char *type, long len) : p(nullptr), pp(&p), len(len) {
     p = tpalloc(const_cast<char *>(type), nullptr, len);
     if (p == nullptr) {
       throw std::bad_alloc();
@@ -48,9 +53,16 @@ struct xatmibuf {
   xatmibuf(const xatmibuf &) = delete;
   xatmibuf &operator=(const xatmibuf &) = delete;
 
-  FBFR32 **fbfr() { return reinterpret_cast<FBFR32 **>(&p); }
+  char *release() {
+    char *ret = p;
+    p = nullptr;
+    return ret;
+  }
+
+  FBFR32 **fbfr() { return reinterpret_cast<FBFR32 **>(pp); }
 
   char *p;
+  char **pp;
   long len;
 
   void swap(xatmibuf &other) noexcept {
@@ -61,9 +73,6 @@ struct xatmibuf {
 
 static xatmibuf from_py(py::object obj);
 static py::object to_py(xatmibuf buf);
-
-void PY(TPSVCINFO *) {}
-static int start(int argc, char **argv);
 
 static py::object pytpreturn(int rval, long rcode, py::object data,
                              long flags) {
@@ -171,13 +180,13 @@ static py::object to_py(FBFR32 *fbfr) {
 static py::object to_py(xatmibuf buf) {
   char type[8];
   char subtype[16];
-  if (tptypes(buf.p, type, subtype) == -1) {
+  if (tptypes(*buf.pp, type, subtype) == -1) {
     throw std::invalid_argument("Invalid buffer type");
   }
   if (strcmp(type, "STRING") == 0) {
-    return py::cast(buf.p);
+    return py::cast(*buf.pp);
   } else if (strcmp(type, "FML32") == 0) {
-    return to_py(reinterpret_cast<FBFR32 *>(buf.p));
+    return to_py(reinterpret_cast<FBFR32 *>(*buf.pp));
   } else {
     throw std::invalid_argument("Unsupported buffer type");
   }
@@ -285,24 +294,141 @@ static void pyFprint32(py::object obj) {
 
 static py::object _roundtrip(py::object obj) { return to_py(from_py(obj)); }
 
-int tpsvrinit(int argc, char *argv[]) { return 0; }
+int tpsvrinit(int argc, char *argv[]) {
+  if (tpopen() == -1) {
+    userlog(const_cast<char *>("Failed tpopen() = %d / %s"), tperrno,
+            tpstrerror(tperrno));
+    return -1;
+  }
+  if (hasattr(server, __func__)) {
+    std::vector<std::string> args;
+    for (int i = 0; i < argc; i++) {
+      args.push_back(argv[i]);
+    }
+    return server.attr(__func__)(args).cast<int>();
+  }
+  return 0;
+}
+void tpsvrdone() {
+  if (hasattr(server, __func__)) {
+    server.attr(__func__)();
+  }
+}
+int tpsvrthrinit(int argc, char *argv[]) {
+  if (tpopen() == -1) {
+    userlog(const_cast<char *>("Failed tpopen() = %d / %s"), tperrno,
+            tpstrerror(tperrno));
+    return -1;
+  }
+  if (hasattr(server, __func__)) {
+    std::vector<std::string> args;
+    for (int i = 0; i < argc; i++) {
+      args.push_back(argv[i]);
+    }
+    return server.attr(__func__)(args).cast<int>();
+  }
+  return 0;
+}
+void tpsvrthrdone() {
+  if (hasattr(server, __func__)) {
+    server.attr(__func__)();
+  }
+}
+void PY(TPSVCINFO *svcinfo) {
+  int rval = TPEXIT;
+  long rcode = 0;
+  char *odata = nullptr;
+  char name[XATMI_SERVICE_NAME_LENGTH];
+  bool forward = false;
+  try {
+    auto idata = to_py(xatmibuf(svcinfo));
+    auto o = server.attr(svcinfo->name)(idata);
+
+    if (py::isinstance<py::tuple>(o)) {
+      auto ret = o.cast<py::tuple>();
+      if (py::len(ret) == 3) {
+        rval = ret[0].cast<int>();
+        rcode = ret[1].cast<long>();
+        odata = from_py(ret[2]).release();
+      } else if (py::len(ret) == 2) {
+        std::string tmpname = ret[0].cast<py::str>();
+        strncpy(name, tmpname.c_str(), sizeof(name));
+        odata = from_py(ret[1]).release();
+        forward = true;
+      }
+    }
+  } catch (const std::exception &e) {
+    userlog(const_cast<char *>("%s"), e.what());
+  }
+
+  if (forward) {
+    tpforward(name, odata, 0, 0);
+  } else {
+    tpreturn(rval, rcode, odata, 0, 0);
+  }
+}
+
+static void pytpadvertisex(std::string name, long flags) {
+  if (tpadvertisex(const_cast<char *>(name.c_str()), PY, flags) == -1) {
+    throw xatmi_exception(tperrno);
+  }
+}
+
+extern "C" {
+int _tmrunserver(int);
+extern struct xa_switch_t xaosw;
+extern struct xa_switch_t tmnull_switch;
+extern int _tmbuilt_with_thread_option;
+}
+
+static struct tmdsptchtbl_t _tmdsptchtbl[] = {
+    {(char *)"", (char *)"PY", PY, 0, 0}, {NULL, NULL, NULL, 0, 0}};
+
+static struct tmsvrargs_t tmsvrargs = {NULL,        &_tmdsptchtbl[0],
+                                       0,           tpsvrinit,
+                                       tpsvrdone,   _tmrunserver,
+                                       NULL,        NULL,
+                                       NULL,        NULL,
+                                       tprminit,    tpsvrthrinit,
+                                       tpsvrthrdone};
+
+struct tmsvrargs_t *_tmgetsvrargs(void) {
+  tmsvrargs.reserved1 = NULL;
+  tmsvrargs.reserved2 = NULL;
+  // tmsvrargs.xa_switch = &xaosw;
+  tmsvrargs.xa_switch = &tmnull_switch;
+  return &tmsvrargs;
+}
+
+static int pyrun(py::object svr, std::vector<std::string> args) {
+  server = svr;
+  _tmbuilt_with_thread_option = 1;
+  char *argv[args.size()];
+  for (int i = 0; i < args.size(); i++) {
+    argv[i] = const_cast<char *>(args[i].c_str());
+  }
+  return _tmstartserver(args.size(), argv, _tmgetsvrargs());
+}
 
 PYBIND11_MODULE(tuxedo, m) {
   m.doc() = "Tuxedo module";
 
-  static py::exception<xatmi_exception> exc(m, "XatmiException");
+  static py::exception<xatmi_exception> exc1(m, "XatmiException");
+  static py::exception<fml32_exception> exc2(m, "Fml32Exception");
 
   m.def("userlog", &pyuserlog, py::arg("message"));
+  m.def("tpadvertisex", &pytpadvertisex, py::arg("name"), py::arg("flags") = 0);
+  m.def("run", &pyrun, py::arg("server"), py::arg("args"));
 
   m.def("Fprint32", &pyFprint32, py::arg("data"));
   m.def("_roundtrip", &_roundtrip, py::arg("data"));
 
   m.def("tpcall", &pytpcall, py::arg("svc"), py::arg("idata"),
-        py::arg("flags"));
+        py::arg("flags") = 0);
   m.def("tpreturn", &pytpreturn, py::arg("rval"), py::arg("rcode"),
-        py::arg("data"), py::arg("flags"));
+        py::arg("data"), py::arg("flags") = 0);
   m.def("tpforward", &pytpforward, py::arg("svc"), py::arg("data"),
-        py::arg("flags"));
+        py::arg("flags") = 0);
 
   m.attr("TPNOFLAGS") = py::int_(TPNOFLAGS);
 
@@ -357,34 +483,4 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("TPEMIB") = py::int_(TPEMIB);
   m.attr("TPENOSINGLETON") = py::int_(TPENOSINGLETON);
   m.attr("TPENOSECONDARYRQ") = py::int_(TPENOSECONDARYRQ);
-}
-
-extern "C" {
-int _tmrunserver(int);
-extern struct xa_switch_t xaosw;
-extern int _tmbuilt_with_thread_option;
-}
-
-static struct tmdsptchtbl_t _tmdsptchtbl[] = {
-    {(char *)"", (char *)"PY", PY, 0, 0}, {NULL, NULL, NULL, 0, 0}};
-
-static struct tmsvrargs_t tmsvrargs = {NULL,        &_tmdsptchtbl[0],
-                                       0,           tpsvrinit,
-                                       tpsvrdone,   _tmrunserver,
-                                       NULL,        NULL,
-                                       NULL,        NULL,
-                                       tprminit,    tpsvrthrinit,
-                                       tpsvrthrdone};
-
-struct tmsvrargs_t *_tmgetsvrargs(void) {
-  tmsvrargs.reserved1 = NULL;
-  tmsvrargs.reserved2 = NULL;
-  // tmsvrargs.xa_switch = &xaosw;
-  tmsvrargs.xa_switch = NULL;
-  return &tmsvrargs;
-}
-
-static int start(int argc, char **argv) {
-  _tmbuilt_with_thread_option = 1;
-  return _tmstartserver(argc, argv, _tmgetsvrargs());
 }
