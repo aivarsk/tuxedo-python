@@ -1,0 +1,5 @@
+*base 10000
+CURRENCY 1 string
+RATE     2 double
+KEY      3 string
+VALUE    4 string
