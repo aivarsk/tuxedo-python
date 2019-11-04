@@ -14,24 +14,6 @@
 
 namespace py = pybind11;
 
-struct client {
-  client() {}
-  ~client() {}
-  client(const client &) = delete;
-  client &operator=(const client &) = delete;
-  client(client &&) = delete;
-  client &operator=(client &&) = delete;
-};
-
-struct svcresult {
-  int rval;
-  long rcode;
-  char *odata;
-  char name[XATMI_SERVICE_NAME_LENGTH];
-  bool forward;
-  bool clean;
-};
-
 struct xatmi_exception : public std::exception {
  public:
   explicit xatmi_exception(int code) : code(code), message(tpstrerror(code)) {}
@@ -47,6 +29,44 @@ struct fml32_exception : public std::exception {
   std::string message;
 
   const char *what() const noexcept override { return message.c_str(); }
+};
+
+struct client {
+  client() {}
+  // TODO: real params
+  explicit client(bool client) {
+    std::unique_ptr<char, decltype(&tpfree)> guard(
+        tpalloc(const_cast<char *>("TPINIT"), nullptr, TPINITNEED(16)),
+        &tpfree);
+    TPINIT *tpinitbuf = reinterpret_cast<TPINIT *>(guard.get());
+    strcpy(tpinitbuf->usrname, "");
+    strcpy(tpinitbuf->passwd, "");
+    strcpy(tpinitbuf->cltname, "tpsysadm");
+    tpinitbuf->flags = TPMULTICONTEXTS;
+    if (client) {
+      if (tpinit(tpinitbuf) == -1) {
+        throw xatmi_exception(tperrno);
+      }
+    } else {
+      if (tpappthrinit(tpinitbuf) == -1) {
+        throw xatmi_exception(tperrno);
+      }
+    }
+  }
+  ~client() {}
+  client(const client &) = delete;
+  client &operator=(const client &) = delete;
+  client(client &&) = delete;
+  client &operator=(client &&) = delete;
+};
+
+struct svcresult {
+  int rval;
+  long rcode;
+  char *odata;
+  char name[XATMI_SERVICE_NAME_LENGTH];
+  bool forward;
+  bool clean;
 };
 
 struct xatmibuf {
@@ -104,6 +124,12 @@ static py::object server;
 static thread_local std::unique_ptr<client> tclient;
 static thread_local svcresult tsvcresult;
 
+static void default_client() {
+  if (!tclient) {
+    tclient.reset(new client(server.ptr() == nullptr));
+  }
+}
+
 static xatmibuf from_py(py::object obj);
 static py::object to_py(xatmibuf buf);
 
@@ -128,6 +154,7 @@ static void pytpforward(const std::string &svc, py::object data, long flags) {
 }
 
 static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
+  default_client();
   auto in = from_py(idata);
   xatmibuf out("FML32", 1024);
   int rc =
@@ -141,6 +168,7 @@ static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
 }
 
 static int pytpacall(const char *svc, py::object idata, long flags) {
+  default_client();
   auto in = from_py(idata);
   int rc = tpacall(const_cast<char *>(svc), in.p, in.len, flags);
   if (rc == -1) {
@@ -150,6 +178,7 @@ static int pytpacall(const char *svc, py::object idata, long flags) {
 }
 
 static pytpreply pytpgetrply(int cd, long flags) {
+  default_client();
   xatmibuf out("FML32", 1024);
   int rc = tpgetrply(&cd, &out.p, &out.len, flags);
   if (rc == -1) {
@@ -355,6 +384,7 @@ static void pyFprint32(py::object obj) {
 }
 
 int tpsvrinit(int argc, char *argv[]) {
+  py::gil_scoped_acquire acquire;
   if (!tclient) {
     tclient.reset(new client());
   }
@@ -373,11 +403,13 @@ int tpsvrinit(int argc, char *argv[]) {
   return 0;
 }
 void tpsvrdone() {
+  py::gil_scoped_acquire acquire;
   if (hasattr(server, __func__)) {
     server.attr(__func__)();
   }
 }
 int tpsvrthrinit(int argc, char *argv[]) {
+  py::gil_scoped_acquire acquire;
   if (!tclient) {
     tclient.reset(new client());
   }
@@ -396,6 +428,7 @@ int tpsvrthrinit(int argc, char *argv[]) {
   return 0;
 }
 void tpsvrthrdone() {
+  py::gil_scoped_acquire acquire;
   if (hasattr(server, __func__)) {
     server.attr(__func__)();
   }
@@ -407,6 +440,7 @@ void PY(TPSVCINFO *svcinfo) {
   tsvcresult.clean = true;
 
   try {
+    py::gil_scoped_acquire acquire;
     auto idata = to_py(xatmibuf(svcinfo));
     server.attr(svcinfo->name)(idata);
     if (tsvcresult.clean) {
@@ -466,6 +500,8 @@ struct tmsvrargs_t *_tmgetsvrargs(void) {
 
 static int pyrun(py::object svr, std::vector<std::string> args) {
   server = svr;
+
+  py::gil_scoped_release release;
   _tmbuilt_with_thread_option = 1;
   char *argv[args.size()];
   for (size_t i = 0; i < args.size(); i++) {

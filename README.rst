@@ -1,5 +1,14 @@
+=============
 Tuxedo-Python
--------------
+=============
+
+Python3 bindings for Oracle Tuxedo.
+
+.. image:: https://travis-ci.org/aivarsk/tuxedo-python.svg?branch=master
+    :target: https://travis-ci.org/aivarsk/tuxedo-python
+
+Why?
+----
 
 I'm a fan of the way `tuxmodule <https://github.com/henschkowski/tuxmodule/blob/master/README.md>`_ enables you to interact with Oracle Tuxedo. Unfortunately, it's out-dated and somehow limited. So I cloned tuxmodule and started to clean up compiler warnings and work on some features I had in mind:
 
@@ -9,3 +18,117 @@ I'm a fan of the way `tuxmodule <https://github.com/henschkowski/tuxmodule/blob/
 - Receive response even when the service returns TPFAIL (instead of exception)
 
 But I realized that's too much of C for me, so I decided to write my own Python module for Oracle Tuxedo in C++ and `pybind11 <https://github.com/pybind/pybind11>`_ focusing on the parts I find most important first.
+
+General
+-------
+
+``tuxedo`` module supports only ``STRING`` and ``FML32`` buffer types at the moment.
+
+``STRING`` is mapped to/from Python ``str`` type.
+
+``FML32`` is mapped to/from Python ``dict`` type with field names (``str``) as keys and lists (``list``) of different types (``int``, ``str``, ``float`` or ``dict``) as values. ``dict`` to ``FML32`` conversion also treats types ``int``, ``str``, ``float`` or ``dict`` as lists with a single element:
+
+.. code:: python
+
+  {'TA_CLASS': 'Single value'}
+
+converted to ``FML32`` and then back to ``dict`` becomes
+
+.. code:: python
+
+  {'TA_CLASS': ['Single value']}
+
+
+All XATMI functions that take buffer and length arguments in C take only buffer argument in Python.
+
+Calling a service
+-----------------
+
+``tuxedo.tpcall()`` and ``tuxedo.tpgetrply()`` functions return a tuple with 3 elements or throw an exception when no data is received. This is the part I believe ``tuxmodule`` got wrong: a service may return a response
+both when it succeeds (``TPSUCCESS``) and fails (``TPFAIL``) and often the failure response contains some important information.
+
+- 0 or ``TPESVCFAIL``
+- ``tpurcode`` (the second argument to ``tpreturn``)
+- data buffer
+
+.. code:: python
+
+  rval, rcode, data = t.tpcall('.TMIB', {'TA_CLASS': 'T_SVCGRP', 'TA_OPERATION': 'GET'})
+  if rval == 0:
+    # Service returned TPSUCCESS
+  else:
+    # rval == tuxedo.TPESVCFAIL
+    # Service returned TPFAIL 
+
+Writing servers
+---------------
+
+Tuxedo servers are written as Python classes. ``tpsvrinit`` method of object will be called when Tuxedo calls ``tpsvrinit(3c)`` function and it must return 0 on success or -1 on error. A common task for ``tpsvrinit`` is to advertise services the server provides by calling ``tuxedo.tpadvertise()`` with a service name. A method with the same name must exist. ``tpsvrdone``, ``tpsvrthrinit`` and ``tpsvrthrdone`` will be called when Tuxedo calls corresponding functions.
+
+Each service method receives a single argument with incoming buffer and service must end with either call to ``tuxedo.tpreturn()`` or ``tuxedo.tpforward()``. Following two code fragments are equivalent but I believe the first one is less error-prone. Unlike in C ``tuxedo.tpreturn()`` and ``tuxedo.tpforward()`` do not perform ``longjmp`` but set up arguments for those calls once service method will return.
+
+.. code:: python
+
+      def ECHO(self, args):
+          return t.tpreturn(t.TPSUCCESS, 0, args)
+
+.. code:: python
+
+      def ECHO(self, args):
+          t.tpreturn(t.TPSUCCESS, 0, args)
+
+
+After that ``tuxedo.run()`` must be called with an instance of the class and command-line arguments to start Tuxedo server's main loop.
+
+.. code:: python
+
+  import sys
+  import tuxedo as t
+
+  class Server:
+      def tpsvrinit(self, args):
+          t.tpadvertise('ECHO')
+          return 0
+
+      def tpsvrthrinit(self, args):
+          return 0
+
+      def tpsvrthrdone(self):
+          pass
+
+      def tpsvrdone(self):
+          pass
+
+      def ECHO(self, args):
+          return t.tpreturn(t.TPSUCCESS, 0, args)
+
+  if __name__ == '__main__':
+      t.run(Server(), sys.argv)
+
+Writing clients
+---------------
+
+Nothing special is needed to implement Tuxedo clients, just import the module and start calling XATMI functions.
+
+.. code:: python
+
+  import sys
+  import tuxedo as t
+
+  rval, rcode, data = t.tpcall('.TMIB', {'TA_CLASS': 'T_SVCGRP', 'TA_OPERATION': 'GET'})
+
+Demo
+----
+
+``demo`` has some proof-of-concept code:
+
+- ``client.py`` Oracle Tuxedo client
+- ``api.py`` HTTP+JSON server running inside Oracle Tuxedo server
+- ``ecb.py`` HTTP+XML client running inside Oracle Tuxedo server
+- ``mem.py`` multi-threaded in-memory cache
+
+TODO
+----
+
+- Improving multi-threading since Python interpreter is single-threaded (more granual release and acquire GIL)
+- Implementing few more useful APIs

@@ -19,6 +19,8 @@ before_script:
 
 script:
   - source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && python3 setup.py build
+  - source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && sudo python3 setup.py install
+  - source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && cd demo && make
 
 branches:
   only:
