@@ -1,6 +1,9 @@
 dist: bionic
 language: c
 
+addons:
+  hostname: short-hostname
+
 matrix:
   include:
     - os: linux
