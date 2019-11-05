@@ -63,7 +63,7 @@ both when it succeeds (``TPSUCCESS``) and fails (``TPFAIL``) and often the failu
 Writing servers
 ---------------
 
-Tuxedo servers are written as Python classes. ``tpsvrinit`` method of object will be called when Tuxedo calls ``tpsvrinit(3c)`` function and it must return 0 on success or -1 on error. A common task for ``tpsvrinit`` is to advertise services the server provides by calling ``tuxedo.tpadvertise()`` with a service name. A method with the same name must exist. ``tpsvrdone``, ``tpsvrthrinit`` and ``tpsvrthrdone`` will be called when Tuxedo calls corresponding functions.
+Tuxedo servers are written as Python classes. ``tpsvrinit`` method of object will be called when Tuxedo calls ``tpsvrinit(3c)`` function and it must return 0 on success or -1 on error. A common task for ``tpsvrinit`` is to advertise services the server provides by calling ``tuxedo.tpadvertise()`` with a service name. A method with the same name must exist. ``tpsvrdone``, ``tpsvrthrinit`` and ``tpsvrthrdone`` will be called when Tuxedo calls corresponding functions. All of these 4 methods are optional and ``tuxedo`` module always calls ``tpopen()`` and ``tpclose()`` functions before calling user-supplied methods.
 
 Each service method receives a single argument with incoming buffer and service must end with either call to ``tuxedo.tpreturn()`` or ``tuxedo.tpforward()``. Following two code fragments are equivalent but I believe the first one is less error-prone. Unlike in C ``tuxedo.tpreturn()`` and ``tuxedo.tpforward()`` do not perform ``longjmp`` but set up arguments for those calls once service method will return.
 
@@ -82,6 +82,7 @@ After that ``tuxedo.run()`` must be called with an instance of the class and com
 
 .. code:: python
 
+  #!/usr/bin/env python3
   import sys
   import tuxedo as t
 
@@ -105,6 +106,21 @@ After that ``tuxedo.run()`` must be called with an instance of the class and com
   if __name__ == '__main__':
       t.run(Server(), sys.argv)
 
+UBBCONFIG
+---------
+
+To use Python code as Tuxedo server the file itself must be executable (``chmod +x *.py``) and it must contain shebang line with Python:
+
+.. code:: python
+
+  #!/usr/bin/env python3
+
+After that you can use the ``*.py`` file as server executable in ``UBBCONFIG``:
+
+.. code::
+
+  "api.py" SRVGRP=GROUP1 SRVID=20 RQADDR="api" MIN=1 SECONDARYRQ=Y REPLYQ=Y
+
 Writing clients
 ---------------
 
@@ -112,6 +128,7 @@ Nothing special is needed to implement Tuxedo clients, just import the module an
 
 .. code:: python
 
+  #!/usr/bin/env python3
   import sys
   import tuxedo as t
 
@@ -130,5 +147,4 @@ Demo
 TODO
 ----
 
-- Improving multi-threading since Python interpreter is single-threaded (more granual release and acquire GIL)
 - Implementing few more useful APIs
