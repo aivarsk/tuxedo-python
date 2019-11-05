@@ -460,7 +460,14 @@ void PY(TPSVCINFO *svcinfo) {
 }
 
 static void pytpadvertisex(std::string svcname, std::string func, long flags) {
+#if defined(TPSINGLETON) && defined(TPSECONDARYRQ)
   if (tpadvertisex(const_cast<char *>(svcname.c_str()), PY, flags) == -1) {
+#else
+  if (flags != 0) {
+    throw std::invalid_argument("flags not supported");
+  }
+  if (tpadvertise(const_cast<char *>(svcname.c_str()), PY) == -1) {
+#endif
     throw xatmi_exception(tperrno);
   }
   if (svcname != func) {
@@ -591,8 +598,10 @@ PYBIND11_MODULE(tuxedo, m) {
       [](const char *message) { userlog(const_cast<char *>("%s"), message); },
       py::arg("message"));
 
+#if defined(TPSINGLETON) && defined(TPSECONDARYRQ)
   m.def("tpadvertisex", &pytpadvertisex, py::arg("svcname"), py::arg("func"),
         py::arg("flags") = 0);
+#endif
   m.def("tpadvertise", &pytpadvertise, py::arg("svcname"));
 
   m.def("run", &pyrun, py::arg("server"), py::arg("args"));
@@ -628,8 +637,12 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("TPACK_INTL") = py::int_(TPACK_INTL);
   m.attr("TPNOCOPY") = py::int_(TPNOCOPY);
 
+#ifdef TPSINGLETON
   m.attr("TPSINGLETON") = py::int_(TPSINGLETON);
+#endif
+#ifdef TPSECONDARYRQ
   m.attr("TPSECONDARYRQ") = py::int_(TPSECONDARYRQ);
+#endif
 
   m.attr("TPFAIL") = py::int_(TPFAIL);
   m.attr("TPSUCCESS") = py::int_(TPSUCCESS);
@@ -660,6 +673,10 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("TPEMATCH") = py::int_(TPEMATCH);
   m.attr("TPEDIAGNOSTIC") = py::int_(TPEDIAGNOSTIC);
   m.attr("TPEMIB") = py::int_(TPEMIB);
+#ifdef TPENOSINGLETON
   m.attr("TPENOSINGLETON") = py::int_(TPENOSINGLETON);
+#endif
+#ifdef TPENOSECONDARYRQ
   m.attr("TPENOSECONDARYRQ") = py::int_(TPENOSECONDARYRQ);
+#endif
 }
