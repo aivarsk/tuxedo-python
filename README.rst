@@ -134,15 +134,79 @@ Nothing special is needed to implement Tuxedo clients, just import the module an
 
   rval, rcode, data = t.tpcall('.TMIB', {'TA_CLASS': 'T_SVCGRP', 'TA_OPERATION': 'GET'})
 
+Using Oracle Database
+---------------------
+
+You can access Oracle database with ``cx_Oracle`` library and local transactions by just following the documentation of ``cx_Oracle``.
+
+If you want a server written in Python to participate in the global transaction first specify a resource manager name to use (similar to ``buidserver``). ``tuxedo`` module currently supports:
+
+- NONE default "null" resource manager
+- Oracle_XA for Oracle Database
+
+.. code:: python
+
+    t.run(Server(), sys.argv, 'Oracle_XA')
+
+
+After that you should create a database connection in ``tpsvrinit`` by using ``tuxed.xaoSvcCtx()`` function:
+
+.. code:: python
+
+    def tpsvrinit(self, args):
+        self.db = cx_Oracle.connect(handle=t.xaoSvcCtx())
+
+That is the only difference from standard ``cx_Oracle`` use case. Here is a complete example for a single-threaded server:
+
+.. code:: python
+
+  #!/usr/bin/env python3
+
+  import sys
+  import tuxedo as t
+  import cx_Oracle
+
+  class Server:
+      def tpsvrinit(self, args):
+          t.userlog('Server startup')
+          self.db = cx_Oracle.connect(handle=t.xaoSvcCtx())
+          t.tpadvertise('DB')
+          return 0
+
+      def DB(self, args):
+          dbc = self.db.cursor()
+          dbc.execute('insert into pymsg(msg) values (:1)', ['Hello from python'])
+          return t.tpreturn(t.TPSUCCESS, 0, args)
+
+  if __name__ == '__main__':
+      t.run(Server(), sys.argv, 'Oracle_XA')
+
+For a multi-threaded server new connections for each thread must be created in ``tpsvrthrinit()`` (instead of ``tpsvrinit()``) and stored in thread-local storage of ``threading.local()``.
+
+Server must belong to a group with ``Oracle_XA`` as resource manager, something like this in ``UBBCONFIG``
+
+.. code::
+
+  \*GROUPS
+  GROUP2 LMID=tuxapp GRPNO=2 TMSNAME=ORACLETMS OPENINFO="Oracle_XA:Oracle_XA+Objects=true+Acc=P/scott/tiger+SqlNet=ORCL+SesTm=60+LogDir=/tmp+Threads=true"
+  \*SERVERS
+  "db.py" SRVGRP=GROUP2 SRVID=2 CLOPT="-A"
+
+Global transactions
+-------------------
+
+Transactions can be started and committed or aborted by using ``tuxedo.tpbegin()``, ``tuxedo.tpcommit()``, ``tuxedo.tpabort()``. These functions take the same arguments as their corresponding C functions.
+
 Demo
 ----
 
-``demo`` has some proof-of-concept code:
+``demo/`` folder has some proof-of-concept code:
 
 - ``client.py`` Oracle Tuxedo client
 - ``api.py`` HTTP+JSON server running inside Oracle Tuxedo server
 - ``ecb.py`` HTTP+XML client running inside Oracle Tuxedo server
 - ``mem.py`` multi-threaded in-memory cache
+- ``db.py`` Access Oracle Database using cx_Oracle module within global transaction
 
 TODO
 ----

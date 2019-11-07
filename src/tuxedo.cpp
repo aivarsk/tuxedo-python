@@ -6,6 +6,7 @@
 #undef _
 #pragma GCC diagnostic pop
 
+#include <dlfcn.h>
 #include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -479,15 +480,36 @@ static struct tmsvrargs_t tmsvrargs = {NULL,        &_tmdsptchtbl[0],
                                        tprminit,    tpsvrthrinit,
                                        tpsvrthrdone};
 
-struct tmsvrargs_t *_tmgetsvrargs(void) {
+typedef void *(xao_svc_ctx)(void *);
+static xao_svc_ctx *xao_svc_ctx_ptr;
+struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
   tmsvrargs.reserved1 = NULL;
   tmsvrargs.reserved2 = NULL;
   // tmsvrargs.xa_switch = &xaosw;
-  tmsvrargs.xa_switch = &tmnull_switch;
+  if (strcasecmp(rmname, "NONE") == 0) {
+    tmsvrargs.xa_switch = &tmnull_switch;
+  } else if (strcasecmp(rmname, "Oracle_XA") == 0) {
+    const char *orahome = getenv("ORACLE_HOME");
+    auto lib = std::string((orahome == nullptr? "" : orahome)) + "/lib/libclntsh.so";
+    void *handle = dlopen(lib.c_str(), RTLD_NOW);
+    if (!handle) {
+      throw std::runtime_error(std::string("Failed loading $ORACLE_HOME/lib/libclntsh.so ") + dlerror());
+    }
+    tmsvrargs.xa_switch = reinterpret_cast<xa_switch_t *>(dlsym(handle, "xaosw"));
+    if (tmsvrargs.xa_switch == nullptr) {
+      throw std::runtime_error("xa_switch_t named xaosw not found");
+    }
+    xao_svc_ctx_ptr = reinterpret_cast<xao_svc_ctx*>(dlsym(handle, "xaoSvcCtx"));
+    if (xao_svc_ctx_ptr == nullptr) {
+      throw std::runtime_error("xa_switch_t named xaosw not found");
+    }
+  } else {
+    throw std::invalid_argument("Unsupported Resource Manager");
+  }
   return &tmsvrargs;
 }
 
-static int pyrun(py::object svr, std::vector<std::string> args) {
+static int pyrun(py::object svr, std::vector<std::string> args, const char *rmname) {
   server = svr;
 
   py::gil_scoped_release release;
@@ -496,7 +518,7 @@ static int pyrun(py::object svr, std::vector<std::string> args) {
   for (size_t i = 0; i < args.size(); i++) {
     argv[i] = const_cast<char *>(args[i].c_str());
   }
-  return _tmstartserver(args.size(), argv, _tmgetsvrargs());
+  return _tmstartserver(args.size(), argv, _tmgetsvrargs(rmname));
 }
 
 PYBIND11_MODULE(tuxedo, m) {
@@ -541,6 +563,15 @@ PYBIND11_MODULE(tuxedo, m) {
   });
 
   m.def(
+      "xaoSvcCtx",
+      []() {
+        if (xao_svc_ctx_ptr == nullptr) {
+          throw std::runtime_error("xaoSvcCtx is null");
+        }
+        return reinterpret_cast<unsigned long long>((*xao_svc_ctx_ptr)(nullptr));
+      });
+
+  m.def(
       "tpbegin",
       [](unsigned long timeout, long flags) {
         py::gil_scoped_release release;
@@ -564,7 +595,7 @@ PYBIND11_MODULE(tuxedo, m) {
       "tpabort",
       [](long flags) {
         py::gil_scoped_release release;
-        if (tpcommit(flags) == -1) {
+        if (tpabort(flags) == -1) {
           throw xatmi_exception(tperrno);
         }
       },
@@ -595,7 +626,7 @@ PYBIND11_MODULE(tuxedo, m) {
       [](const char *svcname) { pytpadvertisex(svcname, svcname, 0); },
       py::arg("svcname"));
 
-  m.def("run", &pyrun, py::arg("server"), py::arg("args"));
+  m.def("run", &pyrun, py::arg("server"), py::arg("args"), py::arg("rmname")="NONE");
 
   m.def("tpcall", &pytpcall, py::arg("svc"), py::arg("idata"),
         py::arg("flags") = 0);

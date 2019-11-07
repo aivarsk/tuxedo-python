@@ -4,7 +4,7 @@ import os
 import sys
 import setuptools
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 
 class get_pybind_include(object):
@@ -88,11 +88,17 @@ setup(
     author='Aivars Kalvans',
     author_email='aivars.kalvans@gmail.com',
     url='https://github.com/aivarsk/tuxedo-python',
-    description='Python bindings for writing Oracle Tuxedo clients and servers',
+    description='Python3 bindings for writing Oracle Tuxedo clients and servers',
     long_description=open('README.rst').read(),
     ext_modules=ext_modules,
     install_requires=['pybind11>=2.4'],
     setup_requires=['pybind11>=2.4'],
     cmdclass={'build_ext': BuildExt},
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'Programming Language :: C++',
+        'Operating System :: POSIX',
+        'License :: OSI Approved :: MIT License',
+    ],
     zip_safe=False,
 )
