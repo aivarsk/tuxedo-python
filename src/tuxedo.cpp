@@ -509,7 +509,7 @@ struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
   return &tmsvrargs;
 }
 
-static int pyrun(py::object svr, std::vector<std::string> args, const char *rmname) {
+static void pyrun(py::object svr, std::vector<std::string> args, const char *rmname) {
   server = svr;
 
   py::gil_scoped_release release;
@@ -518,11 +518,11 @@ static int pyrun(py::object svr, std::vector<std::string> args, const char *rmna
   for (size_t i = 0; i < args.size(); i++) {
     argv[i] = const_cast<char *>(args[i].c_str());
   }
-  return _tmstartserver(args.size(), argv, _tmgetsvrargs(rmname));
+  (void)_tmstartserver(args.size(), argv, _tmgetsvrargs(rmname));
 }
 
 PYBIND11_MODULE(tuxedo, m) {
-  m.doc() = "Tuxedo module";
+  m.doc() = "Python3 bindings for writing Oracle Tuxedo clients and servers";
 
   // Poor man's namedtuple
   py::class_<pytpreply>(m, "TpReply")
@@ -569,7 +569,7 @@ PYBIND11_MODULE(tuxedo, m) {
           throw std::runtime_error("xaoSvcCtx is null");
         }
         return reinterpret_cast<unsigned long long>((*xao_svc_ctx_ptr)(nullptr));
-      });
+      }, "Returns the OCI service handle for a given XA connection");
 
   m.def(
       "tpbegin",
@@ -579,6 +579,7 @@ PYBIND11_MODULE(tuxedo, m) {
           throw xatmi_exception(tperrno);
         }
       },
+      "Routine for beginning a transaction",
       py::arg("timeout"), py::arg("flags") = 0);
 
   m.def(
@@ -589,6 +590,7 @@ PYBIND11_MODULE(tuxedo, m) {
           throw xatmi_exception(tperrno);
         }
       },
+      "Routine for committing current transaction",
       py::arg("flags") = 0);
 
   m.def(
@@ -599,6 +601,7 @@ PYBIND11_MODULE(tuxedo, m) {
           throw xatmi_exception(tperrno);
         }
       },
+      "Routine for aborting current transaction",
       py::arg("flags") = 0);
 
   m.def("tpgetlev", []() {
@@ -607,7 +610,7 @@ PYBIND11_MODULE(tuxedo, m) {
       throw xatmi_exception(tperrno);
     }
     return py::bool_(rc);
-  });
+  }, "Routine for checking if a transaction is in progress");
 
   m.def(
       "userlog",
@@ -615,6 +618,7 @@ PYBIND11_MODULE(tuxedo, m) {
         py::gil_scoped_release release;
         userlog(const_cast<char *>("%s"), message);
       },
+      "Writes a message to the Oracle Tuxedo ATMI system central event log",
       py::arg("message"));
 
 #if defined(TPSINGLETON) && defined(TPSECONDARYRQ)

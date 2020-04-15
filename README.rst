@@ -2,7 +2,7 @@
 Tuxedo-Python
 =============
 
-Python3 bindings for Oracle Tuxedo.
+Python3 bindings for writing Oracle Tuxedo clients and servers.
 
 .. image:: https://travis-ci.org/aivarsk/tuxedo-python.svg?branch=master
     :target: https://travis-ci.org/aivarsk/tuxedo-python
@@ -149,7 +149,7 @@ If you want a server written in Python to participate in the global transaction 
     t.run(Server(), sys.argv, 'Oracle_XA')
 
 
-After that you should create a database connection in ``tpsvrinit`` by using ``tuxed.xaoSvcCtx()`` function:
+After that you should create a database connection in ``tpsvrinit`` by using ``tuxedo.xaoSvcCtx()`` function:
 
 .. code:: python
 
@@ -187,9 +187,9 @@ Server must belong to a group with ``Oracle_XA`` as resource manager, something 
 
 .. code::
 
-  \*GROUPS
-  GROUP2 LMID=tuxapp GRPNO=2 TMSNAME=ORACLETMS OPENINFO="Oracle_XA:Oracle_XA+Objects=true+Acc=P/scott/tiger+SqlNet=ORCL+SesTm=60+LogDir=/tmp+Threads=true"
-  \*SERVERS
+  *GROUPS
+  GROUP2 LMID=tuxapp GRPNO=2 TMSNAME=ORACLETMS OPENINFO="Oracle_XA+Objects=true+Acc=P/scott/tiger+SqlNet=ORCL+SesTm=60+LogDir=/tmp+Threads=true"
+  *SERVERS
   "db.py" SRVGRP=GROUP2 SRVID=2 CLOPT="-A"
 
 Global transactions
