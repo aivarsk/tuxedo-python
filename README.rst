@@ -188,7 +188,7 @@ Server must belong to a group with ``Oracle_XA`` as resource manager, something 
 .. code::
 
   *GROUPS
-  GROUP2 LMID=tuxapp GRPNO=2 TMSNAME=ORACLETMS OPENINFO="Oracle_XA+Objects=true+Acc=P/scott/tiger+SqlNet=ORCL+SesTm=60+LogDir=/tmp+Threads=true"
+  GROUP2 LMID=tuxapp GRPNO=2 TMSNAME=ORACLETMS OPENINFO="Oracle_XA:Oracle_XA+Objects=true+Acc=P/scott/tiger+SqlNet=ORCL+SesTm=60+LogDir=/tmp+Threads=true"
   *SERVERS
   "db.py" SRVGRP=GROUP2 SRVID=2 CLOPT="-A"
 
