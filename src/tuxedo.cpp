@@ -1,6 +1,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #include <atmi.h>
+#include <tpadm.h>
 #include <userlog.h>
 #include <xa.h>
 #undef _
@@ -343,6 +344,21 @@ static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
   return pytpreply(tperrno, tpurcode, to_py(std::move(out)));
 }
 
+static pytpreply pytpadmcall(py::object idata, long flags) {
+  auto in = from_py(idata);
+  xatmibuf out("FML32", 1024);
+  {
+    py::gil_scoped_release release;
+    int rc = tpadmcall(*in.fbfr(), out.fbfr(), flags);
+    if (rc == -1) {
+      if (tperrno != TPESVCFAIL) {
+        throw xatmi_exception(tperrno);
+      }
+    }
+  }
+  return pytpreply(tperrno, 0, to_py(std::move(out)));
+}
+
 static int pytpacall(const char *svc, py::object idata, long flags) {
   default_client();
   auto in = from_py(idata);
@@ -490,16 +506,21 @@ struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
     tmsvrargs.xa_switch = &tmnull_switch;
   } else if (strcasecmp(rmname, "Oracle_XA") == 0) {
     const char *orahome = getenv("ORACLE_HOME");
-    auto lib = std::string((orahome == nullptr? "" : orahome)) + "/lib/libclntsh.so";
+    auto lib =
+        std::string((orahome == nullptr ? "" : orahome)) + "/lib/libclntsh.so";
     void *handle = dlopen(lib.c_str(), RTLD_NOW);
     if (!handle) {
-      throw std::runtime_error(std::string("Failed loading $ORACLE_HOME/lib/libclntsh.so ") + dlerror());
+      throw std::runtime_error(
+          std::string("Failed loading $ORACLE_HOME/lib/libclntsh.so ") +
+          dlerror());
     }
-    tmsvrargs.xa_switch = reinterpret_cast<xa_switch_t *>(dlsym(handle, "xaosw"));
+    tmsvrargs.xa_switch =
+        reinterpret_cast<xa_switch_t *>(dlsym(handle, "xaosw"));
     if (tmsvrargs.xa_switch == nullptr) {
       throw std::runtime_error("xa_switch_t named xaosw not found");
     }
-    xao_svc_ctx_ptr = reinterpret_cast<xao_svc_ctx*>(dlsym(handle, "xaoSvcCtx"));
+    xao_svc_ctx_ptr =
+        reinterpret_cast<xao_svc_ctx *>(dlsym(handle, "xaoSvcCtx"));
     if (xao_svc_ctx_ptr == nullptr) {
       throw std::runtime_error("xa_switch_t named xaosw not found");
     }
@@ -509,7 +530,8 @@ struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
   return &tmsvrargs;
 }
 
-static void pyrun(py::object svr, std::vector<std::string> args, const char *rmname) {
+static void pyrun(py::object svr, std::vector<std::string> args,
+                  const char *rmname) {
   server = svr;
 
   py::gil_scoped_release release;
@@ -568,8 +590,10 @@ PYBIND11_MODULE(tuxedo, m) {
         if (xao_svc_ctx_ptr == nullptr) {
           throw std::runtime_error("xaoSvcCtx is null");
         }
-        return reinterpret_cast<unsigned long long>((*xao_svc_ctx_ptr)(nullptr));
-      }, "Returns the OCI service handle for a given XA connection");
+        return reinterpret_cast<unsigned long long>(
+            (*xao_svc_ctx_ptr)(nullptr));
+      },
+      "Returns the OCI service handle for a given XA connection");
 
   m.def(
       "tpbegin",
@@ -579,8 +603,8 @@ PYBIND11_MODULE(tuxedo, m) {
           throw xatmi_exception(tperrno);
         }
       },
-      "Routine for beginning a transaction",
-      py::arg("timeout"), py::arg("flags") = 0);
+      "Routine for beginning a transaction", py::arg("timeout"),
+      py::arg("flags") = 0);
 
   m.def(
       "tpcommit",
@@ -590,8 +614,7 @@ PYBIND11_MODULE(tuxedo, m) {
           throw xatmi_exception(tperrno);
         }
       },
-      "Routine for committing current transaction",
-      py::arg("flags") = 0);
+      "Routine for committing current transaction", py::arg("flags") = 0);
 
   m.def(
       "tpabort",
@@ -601,16 +624,18 @@ PYBIND11_MODULE(tuxedo, m) {
           throw xatmi_exception(tperrno);
         }
       },
-      "Routine for aborting current transaction",
-      py::arg("flags") = 0);
+      "Routine for aborting current transaction", py::arg("flags") = 0);
 
-  m.def("tpgetlev", []() {
-    int rc;
-    if ((rc = tpgetlev()) == -1) {
-      throw xatmi_exception(tperrno);
-    }
-    return py::bool_(rc);
-  }, "Routine for checking if a transaction is in progress");
+  m.def(
+      "tpgetlev",
+      []() {
+        int rc;
+        if ((rc = tpgetlev()) == -1) {
+          throw xatmi_exception(tperrno);
+        }
+        return py::bool_(rc);
+      },
+      "Routine for checking if a transaction is in progress");
 
   m.def(
       "userlog",
@@ -630,10 +655,14 @@ PYBIND11_MODULE(tuxedo, m) {
       [](const char *svcname) { pytpadvertisex(svcname, svcname, 0); },
       py::arg("svcname"));
 
-  m.def("run", &pyrun, py::arg("server"), py::arg("args"), py::arg("rmname")="NONE");
+  m.def("run", &pyrun, py::arg("server"), py::arg("args"),
+        py::arg("rmname") = "NONE");
 
   m.def("tpcall", &pytpcall, py::arg("svc"), py::arg("idata"),
         py::arg("flags") = 0);
+
+  m.def("tpadmcall", &pytpadmcall, py::arg("idata"), py::arg("flags") = 0);
+
   m.def("tpacall", &pytpacall, py::arg("svc"), py::arg("idata"),
         py::arg("flags") = 0);
   m.def("tpgetrpy", &pytpgetrply, py::arg("cd"), py::arg("flags") = 0);
