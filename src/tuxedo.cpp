@@ -10,10 +10,14 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
-// Conflicts with pyconfig.h
+// Conflicts with pyconfig.h, Windows-only?
+#if defined(_WIN32) || defined(_WIN64)
 #define pid_t dummy_pid_t
 #include <tmenv.h>
 #undef pid_t
+#else
+#include <tmenv.h>
+#endif
 
 #include <atmi.h>
 #include <tpadm.h>
