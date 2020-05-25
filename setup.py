@@ -4,7 +4,7 @@ import os
 import sys
 import setuptools
 
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 
 
 class get_pybind_include(object):
@@ -72,7 +72,6 @@ class BuildExt(build_ext):
         ct = self.compiler.compiler_type
         opts = []
         link_opts = []
-        libprefix = ''
         if ct == 'unix':
             opts.append('-DVERSION_INFO="%s"' % self.distribution.get_version())
             opts.append(cpp_flag(self.compiler))
@@ -81,12 +80,24 @@ class BuildExt(build_ext):
         elif ct == 'msvc':
             opts.append('/EHsc')
             opts.append('/DVERSION_INFO=\\"%s\\"' % self.distribution.get_version())
-            libprefix = 'lib'
+            tuxdir = os.environ['TUXDIR']
+            #cl /MD  -I"%TUXDIR%"\include -Fea BS-23b8.c a.c  "%TUXDIR%"\lib\libtux.lib  "%TUXDIR%"\lib\libbuft.lib   "%TUXDIR%"\lib\libfml.lib "%TUXDIR%"\lib\libfml32.lib "%TUXDIR%"\lib\libengine.lib  wsock32.lib kernel32.lib advapi32.lib user32.lib gdi32.lib comdlg32.lib winspool.lib  -link /MANIFEST -implib:BS-23b8.lib
+            link_opts = [
+                    os.path.join(tuxdir, 'lib', 'libtux.lib'),
+                    os.path.join(tuxdir, 'lib', 'libbuft.lib'),
+                    os.path.join(tuxdir, 'lib', 'libfml.lib'),
+                    os.path.join(tuxdir, 'lib', 'libfml32.lib'),
+                    os.path.join(tuxdir, 'lib', 'libengine.lib'),
+                    os.path.join(tuxdir, 'lib', 'libtmib.lib'),
+                    'wsock32.lib', 'kernel32.lib', 'advapi32.lib', 'user32.lib', 'gdi32.lib', 'comdlg32.lib', 'winspool.lib',
+                    '/MANIFEST'
+                    ]
+
 
         for ext in self.extensions:
             ext.extra_compile_args = opts
             ext.extra_link_args = link_opts
-            ext.libraries = [libprefix + lib for lib in ext.libraries]
+            if ct == 'msvc': ext.libraries = []
         build_ext.build_extensions(self)
 
 setup(

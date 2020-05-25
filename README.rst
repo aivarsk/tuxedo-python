@@ -22,7 +22,15 @@ But I realized that's too much of C for me, so I decided to write my own Python 
 Windows runtime requirements
 ----------------------------
 
-On Windows, the Visual C++ redistributable packages are a runtime requirement for this project. It can be found [here](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads).
+On Windows, the Visual C++ redistributable packages are a runtime requirement for this project. It can be found `here <https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads>`_.
+
+I have successfully built the module with Python 3.7.7.
+
+Python 3.8.3 fails to import the module `similar to <https://github.com/psycopg/psycopg2/issues/1006>`_ but I have no solution yet.
+
+.. code:: Python
+  ImportError: DLL load failed while importing tuxedo: The specified module could not be found.
+
 
 General
 -------
