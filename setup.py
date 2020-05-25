@@ -32,7 +32,7 @@ ext_modules = [
             get_pybind_include(user=True),
         ],
         library_dirs=[os.path.join(os.environ['TUXDIR'], 'lib')],
-        libraries=['tux', 'fml32', 'tmib'],
+        libraries=['tux', 'fml32', 'tmib', 'engine'],
         language='c++'
     ),
 ]
@@ -72,14 +72,21 @@ class BuildExt(build_ext):
         ct = self.compiler.compiler_type
         opts = []
         link_opts = []
-        opts.append('-DVERSION_INFO="%s"' % self.distribution.get_version())
-        opts.append(cpp_flag(self.compiler))
-        if has_flag(self.compiler, '-fvisibility=hidden'):
-            opts.append('-fvisibility=hidden')
+        libprefix = ''
+        if ct == 'unix':
+            opts.append('-DVERSION_INFO="%s"' % self.distribution.get_version())
+            opts.append(cpp_flag(self.compiler))
+            if has_flag(self.compiler, '-fvisibility=hidden'):
+                opts.append('-fvisibility=hidden')
+        elif ct == 'msvc':
+            opts.append('/EHsc')
+            opts.append('/DVERSION_INFO=\\"%s\\"' % self.distribution.get_version())
+            libprefix = 'lib'
 
         for ext in self.extensions:
             ext.extra_compile_args = opts
             ext.extra_link_args = link_opts
+            ext.libraries = [libprefix + lib for lib in ext.libraries]
         build_ext.build_extensions(self)
 
 setup(

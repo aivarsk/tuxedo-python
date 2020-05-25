@@ -19,6 +19,11 @@ I'm a fan of the way `tuxmodule <https://github.com/henschkowski/tuxmodule/blob/
 
 But I realized that's too much of C for me, so I decided to write my own Python module for Oracle Tuxedo in C++ and `pybind11 <https://github.com/pybind/pybind11>`_ focusing on the parts I find most important first.
 
+Windows runtime requirements
+----------------------------
+
+On Windows, the Visual C++ redistributable packages are a runtime requirement for this project. It can be found [here](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads).
+
 General
 -------
 

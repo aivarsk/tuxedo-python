@@ -1,5 +1,20 @@
+#if defined(_WIN32) || defined(_WIN64)
+#define _CRT_SECURE_NO_WARNINGS
+//#ifdef _MSC_VER
+#include <windows.h>
+#define strcasecmp _stricmp
+#else
+#include <dlfcn.h>
+#endif
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"
+
+// Conflicts with pyconfig.h
+#define pid_t dummy_pid_t
+#include <tmenv.h>
+#undef pid_t
+
 #include <atmi.h>
 #include <tpadm.h>
 #include <userlog.h>
@@ -7,7 +22,6 @@
 #undef _
 #pragma GCC diagnostic pop
 
-#include <dlfcn.h>
 #include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -504,6 +518,8 @@ struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
   // tmsvrargs.xa_switch = &xaosw;
   if (strcasecmp(rmname, "NONE") == 0) {
     tmsvrargs.xa_switch = &tmnull_switch;
+#if defined(_WIN32) || defined(_WIN64)
+#else
   } else if (strcasecmp(rmname, "Oracle_XA") == 0) {
     const char *orahome = getenv("ORACLE_HOME");
     auto lib =
@@ -524,6 +540,7 @@ struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
     if (xao_svc_ctx_ptr == nullptr) {
       throw std::runtime_error("xa_switch_t named xaosw not found");
     }
+#endif
   } else {
     throw std::invalid_argument("Unsupported Resource Manager");
   }
@@ -536,11 +553,11 @@ static void pyrun(py::object svr, std::vector<std::string> args,
 
   py::gil_scoped_release release;
   _tmbuilt_with_thread_option = 1;
-  char *argv[args.size()];
+  std::vector<char *> argv(args.size());
   for (size_t i = 0; i < args.size(); i++) {
     argv[i] = const_cast<char *>(args[i].c_str());
   }
-  (void)_tmstartserver(args.size(), argv, _tmgetsvrargs(rmname));
+  (void)_tmstartserver(args.size(), &argv[0], _tmgetsvrargs(rmname));
 }
 
 PYBIND11_MODULE(tuxedo, m) {
