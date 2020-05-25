@@ -29,6 +29,7 @@ I have successfully built the module with Python 3.7.7.
 Python 3.8.3 fails to import the module `similar to <https://github.com/psycopg/psycopg2/issues/1006>`_ but I have no solution yet.
 
 .. code:: Python
+
   ImportError: DLL load failed while importing tuxedo: The specified module could not be found.
 
 
