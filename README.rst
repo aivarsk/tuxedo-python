@@ -32,6 +32,12 @@ Python 3.8.3 fails to import the module `similar to <https://github.com/psycopg/
 
   ImportError: DLL load failed while importing tuxedo: The specified module could not be found.
 
+Alternatives to Oracle Tuxedo
+-----------------------------
+
+Tuxedo-Python can also be used with `Open Source alternative to Oracle Tuxedo called Fuxedo <https://github.com/fuxedo/fuxedo>`_. Just export ``TUXDIR`` pointing to the folder where `Fuxedo <http://fuxedo.io>`_ is installed everything should work.
+
+All demo code provided with the module works with both Oracle Tuxedo and Fuxedo and you can avoid vendor lock-in by using Python and Tuxedo-Python module.
 
 General
 -------

@@ -4,7 +4,7 @@ import os
 import sys
 import setuptools
 
-__version__ = '0.0.7'
+__version__ = '0.0.8'
 
 
 class get_pybind_include(object):
@@ -89,7 +89,13 @@ class BuildExt(build_ext):
                     os.path.join(tuxdir, 'lib', 'libfml32.lib'),
                     os.path.join(tuxdir, 'lib', 'libengine.lib'),
                     os.path.join(tuxdir, 'lib', 'libtmib.lib'),
-                    'wsock32.lib', 'kernel32.lib', 'advapi32.lib', 'user32.lib', 'gdi32.lib', 'comdlg32.lib', 'winspool.lib',
+                    'wsock32.lib',
+                    'kernel32.lib',
+                    'advapi32.lib',
+                    'user32.lib',
+                    'gdi32.lib',
+                    'comdlg32.lib',
+                    'winspool.lib',
                     '/MANIFEST'
                     ]
 
@@ -116,7 +122,9 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: C++',
         'Operating System :: POSIX',
+        'Operating System :: Microsoft :: Windows',
         'License :: OSI Approved :: MIT License',
+        'Topic :: Software Development',
     ],
     zip_safe=False,
 )
