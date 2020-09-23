@@ -693,6 +693,37 @@ PYBIND11_MODULE(tuxedo, m) {
   m.def("tpforward", &pytpforward, py::arg("svc"), py::arg("data"),
         py::arg("flags") = 0);
 
+  m.def(
+      "Fldtype32", [](FLDID32 fieldid) { return Fldtype32(fieldid); },
+      py::arg("fieldid"));
+  m.def(
+      "Fldno32", [](FLDID32 fieldid) { return Fldno32(fieldid); },
+      py::arg("fieldid"));
+  m.def(
+      "Fmkfldid32", [](int type, FLDID32 num) { return Fmkfldid32(type, num); },
+      py::arg("type"), py::arg("num"));
+
+  m.def(
+      "Fname32",
+      [](FLDID32 fieldid) {
+        auto *name = Fname32(fieldid);
+        if (name == nullptr) {
+          throw fml32_exception(Ferror32);
+        }
+        return name;
+      },
+      py::arg("fieldid"));
+  m.def(
+      "Fldid32",
+      [](const char *name) {
+        auto id = Fldid32(const_cast<char *>(name));
+        if (id == BADFLDID) {
+          throw fml32_exception(Ferror32);
+        }
+        return id;
+      },
+      py::arg("name"));
+
   m.attr("TPNOFLAGS") = py::int_(TPNOFLAGS);
 
   m.attr("TPNOBLOCK") = py::int_(TPNOBLOCK);
@@ -753,4 +784,13 @@ PYBIND11_MODULE(tuxedo, m) {
 #ifdef TPENOSECONDARYRQ
   m.attr("TPENOSECONDARYRQ") = py::int_(TPENOSECONDARYRQ);
 #endif
+
+  m.attr("FLD_SHORT") = py::int_(FLD_SHORT);
+  m.attr("FLD_LONG") = py::int_(FLD_LONG);
+  m.attr("FLD_CHAR") = py::int_(FLD_CHAR);
+  m.attr("FLD_FLOAT") = py::int_(FLD_FLOAT);
+  m.attr("FLD_DOUBLE") = py::int_(FLD_DOUBLE);
+  m.attr("FLD_STRING") = py::int_(FLD_STRING);
+  m.attr("FLD_CARRAY") = py::int_(FLD_CARRAY);
+  m.attr("BADFLDID") = py::int_(BADFLDID);
 }

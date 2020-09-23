@@ -231,6 +231,19 @@ Global transactions
 
 Transactions can be started and committed or aborted by using ``tuxedo.tpbegin()``, ``tuxedo.tpcommit()``, ``tuxedo.tpabort()``. These functions take the same arguments as their corresponding C functions.
 
+
+FML32 identifiers
+-----------------
+
+``Fname32`` and ``Fldid32`` are available to find map from field identifier to name or the other way.
+
+Functions to determine field number and type from identifier:
+
+.. code:: python
+
+  assert t.Fldtype32(t.Fmkfldid32(t.FLD_STRING, 10)) == t.FLD_STRING
+  assert t.Fldno32(t.Fmkfldid32(t.FLD_STRING, 10)) == 10
+
 Demo
 ----
 
