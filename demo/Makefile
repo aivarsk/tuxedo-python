@@ -9,11 +9,15 @@ export FLDTBLDIR32=$(TUXDIR)/udataobj:$(CURDIR)
 export FIELDTBLS32=tpadm,demo
 
 default: tuxconfig
+	./buf.py
 	tmboot -y
 	curl -X POST --data '{"USD": "5"}' localhost:8000
 	@echo
 	./client.py
 	tmshutdown -y
+
+buf:
+	./buf.py
 
 ubbconfig: ubbconfig.in
 	cat $< \

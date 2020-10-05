@@ -146,8 +146,8 @@ struct xatmibuf {
     }
   }
 
- private:
   char *p;
+ private:
   void swap(xatmibuf &other) noexcept {
     std::swap(p, other.p);
     std::swap(len, other.len);
@@ -224,7 +224,7 @@ static py::object to_py(FBFR32 *fbfr) {
         val.append(py::cast(*reinterpret_cast<double *>(value.get())));
         break;
       case FLD_STRING:
-        val.append(py::str(value.get()));
+        val.append(py::str(PyUnicode_DecodeLocale(value.get(), "surrogateescape")));
         break;
       case FLD_CARRAY:
         val.append(py::bytes(value.get(), len));
@@ -258,8 +258,19 @@ static py::object to_py(xatmibuf buf) {
 static void from_py(py::dict obj, xatmibuf &b);
 static void from_py1(xatmibuf &buf, FLDID32 fieldid, FLDOCC32 oc,
                      py::handle obj, xatmibuf &b) {
-  if (py::isinstance<py::str>(obj)) {
-    std::string val = obj.cast<py::str>();
+  if (obj.is_none()) {
+    // pass
+  } else if (py::isinstance<py::bytes>(obj)) {
+    std::string val(PyBytes_AsString(obj.ptr()), PyBytes_Size(obj.ptr()));
+
+    buf.mutate([&](FBFR32 *fbfr) {
+      return CFchg32(fbfr, fieldid, oc, const_cast<char *>(val.data()), val.size(),
+                     FLD_CARRAY);
+    });
+  } else if (py::isinstance<py::str>(obj)) {
+    py::bytes b = py::reinterpret_steal<py::bytes>(PyUnicode_EncodeLocale(obj.ptr(), "surrogateescape"));
+    std::string val(PyBytes_AsString(b.ptr()), PyBytes_Size(b.ptr()));
+
     buf.mutate([&](FBFR32 *fbfr) {
       return CFchg32(fbfr, fieldid, oc, const_cast<char *>(val.data()), 0,
                      FLD_STRING);
@@ -343,6 +354,35 @@ static void pytpforward(const std::string &svc, py::object data, long flags) {
   strncpy(tsvcresult.name, svc.c_str(), sizeof(tsvcresult.name));
   tsvcresult.odata = from_py(data).release();
   tsvcresult.forward = true;
+}
+
+static py::object pytpexport(py::object idata, long flags) {
+  auto in = from_py(idata);
+  std::vector<char> ostr;
+  ostr.reserve(in.len * 2);
+
+  long olen = ostr.capacity();
+  int rc = tpexport(in.p, in.len, &ostr[0], &olen, flags);
+  if (rc == -1) {
+      throw xatmi_exception(tperrno);
+  }
+
+  if (flags == 0) {
+    return py::bytes(&ostr[0], olen);
+  }
+  return py::str(&ostr[0]);
+}
+
+static py::object pytpimport(const std::string istr, long flags) {
+  xatmibuf obuf("FML32", istr.size());
+
+  long olen = 0;
+  int rc = tpimport(const_cast<char*>(istr.c_str()), istr.size(), obuf.pp, &olen, flags);
+  if (rc == -1) {
+      throw xatmi_exception(tperrno);
+  }
+
+  return to_py(std::move(obuf));
 }
 
 static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
@@ -686,12 +726,15 @@ PYBIND11_MODULE(tuxedo, m) {
 
   m.def("tpacall", &pytpacall, py::arg("svc"), py::arg("idata"),
         py::arg("flags") = 0);
-  m.def("tpgetrpy", &pytpgetrply, py::arg("cd"), py::arg("flags") = 0);
+  m.def("tpgetrply", &pytpgetrply, py::arg("cd"), py::arg("flags") = 0);
 
   m.def("tpreturn", &pytpreturn, py::arg("rval"), py::arg("rcode"),
         py::arg("data"), py::arg("flags") = 0);
   m.def("tpforward", &pytpforward, py::arg("svc"), py::arg("data"),
         py::arg("flags") = 0);
+
+  m.def("tpexport", &pytpexport, py::arg("ibuf"), py::arg("flags") = 0);
+  m.def("tpimport", &pytpimport, py::arg("istr"), py::arg("flags") = 0);
 
   m.def(
       "Fldtype32", [](FLDID32 fieldid) { return Fldtype32(fieldid); },
@@ -793,4 +836,6 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("FLD_STRING") = py::int_(FLD_STRING);
   m.attr("FLD_CARRAY") = py::int_(FLD_CARRAY);
   m.attr("BADFLDID") = py::int_(BADFLDID);
+
+  m.attr("TPEX_STRING") = py::int_(TPEX_STRING);
 }

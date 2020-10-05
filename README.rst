@@ -231,6 +231,10 @@ Global transactions
 
 Transactions can be started and committed or aborted by using ``tuxedo.tpbegin()``, ``tuxedo.tpcommit()``, ``tuxedo.tpabort()``. These functions take the same arguments as their corresponding C functions.
 
+Buffer export and import
+------------------------
+
+
 
 FML32 identifiers
 -----------------
@@ -254,6 +258,7 @@ Demo
 - ``ecb.py`` HTTP+XML client running inside Oracle Tuxedo server
 - ``mem.py`` multi-threaded in-memory cache
 - ``db.py`` Access Oracle Database using cx_Oracle module within global transaction
+- ``buf.py`` Demo of tpimport/tpexport and FML32 identifiers
 
 TODO
 ----
