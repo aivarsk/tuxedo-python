@@ -615,8 +615,6 @@ static void pyrun(py::object svr, std::vector<std::string> args,
 }
 
 PYBIND11_MODULE(tuxedo, m) {
-  m.doc() = "Python3 bindings for writing Oracle Tuxedo clients and servers";
-
   // Poor man's namedtuple
   py::class_<pytpreply>(m, "TpReply")
       .def_readonly("rval", &pytpreply::rval)
@@ -863,4 +861,31 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("BADFLDID") = py::int_(BADFLDID);
 
   m.attr("TPEX_STRING") = py::int_(TPEX_STRING);
+
+  m.doc() =
+R"(Python3 bindings for writing Oracle Tuxedo clients and servers
+
+Flags to service routines:
+
+- TPNOBLOCK - non-blocking send/rcv
+- TPSIGRSTRT - restart rcv on interrupt
+- TPNOREPLY - no reply expected
+- TPNOTRAN - not sent in transaction mode
+- TPTRAN - sent in transaction mode
+- TPNOTIME - no timeout
+- TPABSOLUTE - absolute value on tmsetprio 
+- TPGETANY - get any valid reply
+- TPNOCHANGE - force incoming buffer to match
+- RESERVED_BIT1 - reserved for future use
+- TPCONV - conversational service
+- TPSENDONLY - send-only mode
+- TPRECVONLY - recv-only mode
+
+Flags to tpreturn:
+
+- TPFAIL - service FAILURE for tpreturn
+- TPEXIT - service FAILURE with server exit
+- TPSUCCESS - service SUCCESS for tpreturn
+)";
+
 }
