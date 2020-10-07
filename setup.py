@@ -4,7 +4,8 @@ import os
 import sys
 import setuptools
 
-__version__ = '0.0.10'
+__name__ = 'tuxedo'
+__version__ = '0.0.11'
 
 
 class get_pybind_include(object):
@@ -107,7 +108,7 @@ class BuildExt(build_ext):
         build_ext.build_extensions(self)
 
 setup(
-    name='tuxedo',
+    name=__name__,
     version=__version__,
     author='Aivars Kalvans',
     author_email='aivars.kalvans@gmail.com',
