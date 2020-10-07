@@ -718,43 +718,58 @@ PYBIND11_MODULE(tuxedo, m) {
       py::arg("message"));
 
 #if defined(TPSINGLETON) && defined(TPSECONDARYRQ)
-  m.def("tpadvertisex", &pytpadvertisex, py::arg("svcname"), py::arg("func"),
-        py::arg("flags") = 0);
+  m.def("tpadvertisex", &pytpadvertisex,
+        "Routine for advertising a service with unique service name in a "
+        "domain, or advertising a service on the secondary request queue of a "
+        "Tuxedo server.",
+        py::arg("svcname"), py::arg("func"), py::arg("flags") = 0);
 #endif
   m.def(
       "tpadvertise",
       [](const char *svcname) { pytpadvertisex(svcname, svcname, 0); },
-      py::arg("svcname"));
+      "Routine for advertising a service name", py::arg("svcname"));
 
-  m.def("run", &pyrun, py::arg("server"), py::arg("args"),
+  m.def("run", &pyrun, "Run Tuxedo server", py::arg("server"), py::arg("args"),
         py::arg("rmname") = "NONE");
 
-  m.def("tpcall", &pytpcall, py::arg("svc"), py::arg("idata"),
+  m.def("tpcall", &pytpcall,
+        "Routine for sending service request and awaiting its reply",
+        py::arg("svc"), py::arg("idata"), py::arg("flags") = 0);
+
+  m.def("tpadmcall", &pytpadmcall, "Administers unbooted application",
+        py::arg("idata"), py::arg("flags") = 0);
+
+  m.def("tpacall", &pytpacall, "Routine for sending a service request",
+        py::arg("svc"), py::arg("idata"), py::arg("flags") = 0);
+  m.def("tpgetrply", &pytpgetrply,
+        "Routine for getting a reply from a previous request", py::arg("cd"),
         py::arg("flags") = 0);
 
-  m.def("tpadmcall", &pytpadmcall, py::arg("idata"), py::arg("flags") = 0);
-
-  m.def("tpacall", &pytpacall, py::arg("svc"), py::arg("idata"),
+  m.def("tpreturn", &pytpreturn, "Routine for returning from a service routine",
+        py::arg("rval"), py::arg("rcode"), py::arg("data"),
         py::arg("flags") = 0);
-  m.def("tpgetrply", &pytpgetrply, py::arg("cd"), py::arg("flags") = 0);
+  m.def("tpforward", &pytpforward,
+        "Routine for forwarding a service request to another service routine",
+        py::arg("svc"), py::arg("data"), py::arg("flags") = 0);
 
-  m.def("tpreturn", &pytpreturn, py::arg("rval"), py::arg("rcode"),
-        py::arg("data"), py::arg("flags") = 0);
-  m.def("tpforward", &pytpforward, py::arg("svc"), py::arg("data"),
-        py::arg("flags") = 0);
-
-  m.def("tpexport", &pytpexport, py::arg("ibuf"), py::arg("flags") = 0);
-  m.def("tpimport", &pytpimport, py::arg("istr"), py::arg("flags") = 0);
+  m.def("tpexport", &pytpexport,
+        "Converts a typed message buffer into an exportable, "
+        "machine-independent string representation, that includes digital "
+        "signatures and encryption seals",
+        py::arg("ibuf"), py::arg("flags") = 0);
+  m.def("tpimport", &pytpimport,
+        "Converts an exported representation back into a typed message buffer",
+        py::arg("istr"), py::arg("flags") = 0);
 
   m.def(
       "Fldtype32", [](FLDID32 fieldid) { return Fldtype32(fieldid); },
-      py::arg("fieldid"));
+      "Maps field identifier to field type", py::arg("fieldid"));
   m.def(
       "Fldno32", [](FLDID32 fieldid) { return Fldno32(fieldid); },
-      py::arg("fieldid"));
+      "Maps field identifier to field number", py::arg("fieldid"));
   m.def(
       "Fmkfldid32", [](int type, FLDID32 num) { return Fmkfldid32(type, num); },
-      py::arg("type"), py::arg("num"));
+      "Makes a field identifier", py::arg("type"), py::arg("num"));
 
   m.def(
       "Fname32",
@@ -765,7 +780,7 @@ PYBIND11_MODULE(tuxedo, m) {
         }
         return name;
       },
-      py::arg("fieldid"));
+      "Maps field identifier to field name", py::arg("fieldid"));
   m.def(
       "Fldid32",
       [](const char *name) {
@@ -775,7 +790,7 @@ PYBIND11_MODULE(tuxedo, m) {
         }
         return id;
       },
-      py::arg("name"));
+      "Maps field name to field identifier", py::arg("name"));
 
   m.attr("TPNOFLAGS") = py::int_(TPNOFLAGS);
 
