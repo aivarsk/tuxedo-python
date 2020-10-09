@@ -790,6 +790,42 @@ PYBIND11_MODULE(tuxedo, m) {
       },
       "Maps field name to field identifier", py::arg("name"));
 
+  m.def(
+      "Fboolev32",
+      [](py::object fbfr, const char *expression) {
+        std::unique_ptr<char, decltype(&free)> guard(
+            Fboolco32(const_cast<char *>(expression)), &free);
+        if (guard.get() == nullptr) {
+          throw fml32_exception(Ferror32);
+        }
+        auto buf = from_py(fbfr);
+        auto rc = Fboolev32(*buf.fbfr(), guard.get());
+        if (rc == -1) {
+          throw fml32_exception(Ferror32);
+        }
+        return rc == 1;
+      },
+      "Evaluates buffer against expression", py::arg("fbfr"),
+      py::arg("expression"));
+
+  m.def(
+      "Ffloatev32",
+      [](py::object fbfr, const char *expression) {
+        std::unique_ptr<char, decltype(&free)> guard(
+            Fboolco32(const_cast<char *>(expression)), &free);
+        if (guard.get() == nullptr) {
+          throw fml32_exception(Ferror32);
+        }
+        auto buf = from_py(fbfr);
+        auto rc = Ffloatev32(*buf.fbfr(), guard.get());
+        if (rc == -1) {
+          throw fml32_exception(Ferror32);
+        }
+        return rc;
+      },
+      "Returns value of expression as a double", py::arg("fbfr"),
+      py::arg("expression"));
+
   m.attr("TPNOFLAGS") = py::int_(TPNOFLAGS);
 
   m.attr("TPNOBLOCK") = py::int_(TPNOBLOCK);
@@ -863,7 +899,7 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("TPEX_STRING") = py::int_(TPEX_STRING);
 
   m.doc() =
-R"(Python3 bindings for writing Oracle Tuxedo clients and servers
+      R"(Python3 bindings for writing Oracle Tuxedo clients and servers
 
 Flags to service routines:
 
@@ -887,5 +923,4 @@ Flags to tpreturn:
 - TPEXIT - service FAILURE with server exit
 - TPSUCCESS - service SUCCESS for tpreturn
 )";
-
 }
