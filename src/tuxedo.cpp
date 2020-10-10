@@ -208,9 +208,7 @@ static py::object to_py(FBFR32 *fbfr, FLDLEN32 buflen = 0) {
       if (name != nullptr) {
         result[name] = val;
       } else {
-        char tmpname[32];
-        snprintf(tmpname, sizeof(tmpname), "((FLDID32)%u)", fieldid);
-        result[tmpname] = val;
+        result[py::int_(fieldid)] = val;
       }
     }
 
@@ -312,8 +310,13 @@ static void from_py(py::dict obj, xatmibuf &b) {
   xatmibuf f;
 
   for (auto it : obj) {
-    FLDID32 fieldid =
-        Fldid32(const_cast<char *>(std::string(py::str(it.first)).c_str()));
+    FLDID32 fieldid;
+    if (py::isinstance<py::int_>(it.first)) {
+      fieldid = it.first.cast<py::int_>();
+    } else {
+      fieldid =
+          Fldid32(const_cast<char *>(std::string(py::str(it.first)).c_str()));
+    }
 
     py::handle o = it.second;
     if (py::isinstance<py::list>(o)) {
@@ -825,6 +828,34 @@ PYBIND11_MODULE(tuxedo, m) {
       },
       "Returns value of expression as a double", py::arg("fbfr"),
       py::arg("expression"));
+
+  m.def(
+      "Ffprint32",
+      [](py::object fbfr, py::object iop) {
+        auto buf = from_py(fbfr);
+        int fd = iop.attr("fileno")().cast<py::int_>();
+        std::unique_ptr<FILE, decltype(&fclose)> fiop(fdopen(dup(fd), "w"),
+                                                      &fclose);
+        auto rc = Ffprint32(*buf.fbfr(), fiop.get());
+        if (rc == -1) {
+          throw fml32_exception(Ferror32);
+        }
+      },
+      "Prints fielded buffer to specified stream", py::arg("fbfr"),
+      py::arg("iop"));
+
+  m.def(
+      "Fextread32",
+      [](py::object iop) {
+        xatmibuf obuf("FML32", 1024);
+        int fd = iop.attr("fileno")().cast<py::int_>();
+        std::unique_ptr<FILE, decltype(&fclose)> fiop(fdopen(dup(fd), "r"),
+                                                      &fclose);
+
+        obuf.mutate([&](FBFR32 *fbfr) { return Fextread32(fbfr, fiop.get()); });
+        return to_py(std::move(obuf));
+      },
+      "Builds fielded buffer from printed format", py::arg("iop"));
 
   m.attr("TPNOFLAGS") = py::int_(TPNOFLAGS);
 

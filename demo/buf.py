@@ -33,3 +33,10 @@ if __name__ == '__main__':
     assert t.Fboolev32({'TA_OPERATION': '123456789'}, "TA_OPERATION%%'.234.*'")
     assert not t.Fboolev32({'TA_OPERATION': '123456789'}, "TA_OPERATION%%'.123.*'")
     assert t.Fboolev32({'TA_OPERATION': '123456789'}, "TA_OPERATION!%'.123.*'")
+
+    import sys
+    t.Ffprint32({'TA_OPERATION': '123456789'}, sys.stdout)
+
+    t.Ffprint32({t.Fmkfldid32(t.FLD_STRING, 10): 'Dynamic field'}, sys.stdout)
+
+    print(t.Fextread32(sys.stdin))
