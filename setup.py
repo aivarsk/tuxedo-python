@@ -5,7 +5,7 @@ import sys
 import setuptools
 
 __name__ = 'tuxedo'
-__version__ = '0.0.11'
+__version__ = '0.0.12'
 
 
 class get_pybind_include(object):

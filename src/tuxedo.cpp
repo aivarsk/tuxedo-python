@@ -516,7 +516,14 @@ void PY(TPSVCINFO *svcinfo) {
   try {
     py::gil_scoped_acquire acquire;
     auto idata = to_py(xatmibuf(svcinfo));
-    server.attr(svcinfo->name)(idata);
+
+    auto &&func = server.attr(svcinfo->name);
+    auto &&signature = py::module::import("inspect").attr("signature");
+    if (py::len(signature(func).attr("parameters")) == 3) {
+      func(idata, svcinfo->flags);
+    } else {
+      func(idata);
+    }
     if (tsvcresult.clean) {
       userlog(const_cast<char *>("tpreturn() not called"));
       tpreturn(TPEXIT, 0, nullptr, 0, 0);
