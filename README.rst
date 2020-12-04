@@ -248,6 +248,20 @@ Functions to determine field number and type from identifier:
   assert t.Fldtype32(t.Fmkfldid32(t.FLD_STRING, 10)) == t.FLD_STRING
   assert t.Fldno32(t.Fmkfldid32(t.FLD_STRING, 10)) == 10
 
+Exceptions
+----------
+
+On errors either ``XatmiException`` or ``Fml32Exception`` are raised by the module. Exceptions contain additional attirbute ``code`` that contains the Tuxedo error code and you can compare it with defined errors like ``TPENOENT`` or ``TPESYSTEM``.
+
+.. code:: python
+
+  try:
+    t.tpcall("whatever", {})
+  except t.XatmiException as e:
+    if e.code == t.TPENOENT:
+      print("Service does not exist")
+
+
 Demo
 ----
 

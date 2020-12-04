@@ -29,27 +29,69 @@
 #include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
 #include <functional>
 #include <map>
 
 namespace py = pybind11;
 
 struct xatmi_exception : public std::exception {
- public:
-  explicit xatmi_exception(int code) : code(code), message(tpstrerror(code)) {}
-  int code;
-  std::string message;
+ private:
+  int code_;
+  std::string message_;
 
-  const char *what() const noexcept override { return message.c_str(); }
+ public:
+  explicit xatmi_exception(int code)
+      : code_(code), message_(tpstrerror(code)) {}
+
+  const char *what() const noexcept override { return message_.c_str(); }
+  int code() const noexcept { return code_; }
 };
 
 struct fml32_exception : public std::exception {
-  explicit fml32_exception(int code) : code(code), message(Fstrerror32(code)) {}
-  int code;
-  std::string message;
+ private:
+  int code_;
+  std::string message_;
 
-  const char *what() const noexcept override { return message.c_str(); }
+ public:
+  explicit fml32_exception(int code)
+      : code_(code), message_(Fstrerror32(code)) {}
+
+  const char *what() const noexcept override { return message_.c_str(); }
+  int code() const noexcept { return code_; }
 };
+
+static PyObject *TuxedoException_tp_str(PyObject *selfPtr) {
+  py::str ret;
+  try {
+    py::handle self(selfPtr);
+    py::tuple args = self.attr("args");
+    ret = py::str(args[0]);
+  } catch (py::error_already_set &e) {
+    ret = "";
+  }
+
+  ret.inc_ref();
+  return ret.ptr();
+}
+
+static PyObject *TuxedoException_code(PyObject *selfPtr, void *closure) {
+  try {
+    py::handle self(selfPtr);
+    py::tuple args = self.attr("args");
+    py::object code = args[1];
+    code.inc_ref();
+    return code.ptr();
+  } catch (py::error_already_set &e) {
+    py::none ret;
+    ret.inc_ref();
+    return ret.ptr();
+  }
+}
+
+static PyGetSetDef TuxedoException_getsetters[] = {
+    {const_cast<char *>("code"), TuxedoException_code, NULL, NULL, NULL},
+    {NULL}};
 
 struct client {
   client() {}
@@ -644,22 +686,47 @@ PYBIND11_MODULE(tuxedo, m) {
         }
       });
 
-  //  py::class_<xatmi_exception>(m, "XatmiException")
-  //      .def_readonly("code", &xatmi_exception::code)
-  //      .def_readonly("message", &xatmi_exception::message);
-  //  py::class_<fml32_exception>(m, "Fml32Exception")
-  //      .def_readonly("code", &fml32_exception::code)
-  //      .def_readonly("message", &fml32_exception::message);
+  static PyObject *XatmiException =
+      PyErr_NewException("tuxedo.XatmiException", NULL, NULL);
 
-  static py::exception<xatmi_exception> exc1(m, "XatmiException");
-  static py::exception<fml32_exception> exc2(m, "Fml32Exception");
+  if (XatmiException) {
+    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(XatmiException);
+    as_type->tp_str = TuxedoException_tp_str;
+    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
+    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
+    dict[py::handle(PyDescr_NAME(descr))] = py::handle(descr);
+
+    Py_XINCREF(XatmiException);
+    m.add_object("XatmiException", py::handle(XatmiException));
+  }
+  static PyObject *Fml32Exception =
+      PyErr_NewException("tuxedo.Fml32Exception", NULL, NULL);
+  if (Fml32Exception) {
+    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(Fml32Exception);
+    as_type->tp_str = TuxedoException_tp_str;
+    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
+    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
+    dict[py::handle(PyDescr_NAME(descr))] = py::handle(descr);
+
+    Py_XINCREF(Fml32Exception);
+    m.add_object("Fml32Exception", py::handle(Fml32Exception));
+  }
+
   py::register_exception_translator([](std::exception_ptr p) {
     try {
-      if (p) std::rethrow_exception(p);
+      if (p) {
+        std::rethrow_exception(p);
+      }
     } catch (const xatmi_exception &e) {
-      exc1(e.what());
+      py::tuple args(2);
+      args[0] = e.what();
+      args[1] = e.code();
+      PyErr_SetObject(XatmiException, args.ptr());
     } catch (const fml32_exception &e) {
-      exc2(e.what());
+      py::tuple args(2);
+      args[0] = e.what();
+      args[1] = e.code();
+      PyErr_SetObject(Fml32Exception, args.ptr());
     }
   });
 
