@@ -440,6 +440,19 @@ static py::object pytpimport(const std::string istr, long flags) {
   return to_py(std::move(obuf));
 }
 
+static void pytppost(const std::string eventname, py::object data, long flags) {
+  auto in = from_py(data);
+
+  {
+    py::gil_scoped_release release;
+    int rc =
+        tppost(const_cast<char *>(eventname.c_str()), *in.pp, in.len, flags);
+    if (rc == -1) {
+      throw xatmi_exception(tperrno);
+    }
+  }
+}
+
 static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
   default_client();
   auto in = from_py(idata);
@@ -835,6 +848,9 @@ PYBIND11_MODULE(tuxedo, m) {
   m.def("tpimport", &pytpimport,
         "Converts an exported representation back into a typed message buffer",
         py::arg("istr"), py::arg("flags") = 0);
+
+  m.def("tppost", &pytppost, "Posts an event", py::arg("eventname"),
+        py::arg("data"), py::arg("flags") = 0);
 
   m.def(
       "Fldtype32", [](FLDID32 fieldid) { return Fldtype32(fieldid); },
