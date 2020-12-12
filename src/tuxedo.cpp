@@ -137,10 +137,10 @@ struct client {
     if (cltname != nullptr) {
       strncpy(tpinfo->cltname, cltname, sizeof(tpinfo->cltname));
     }
-    if (cltname != nullptr) {
+    if (passwd != nullptr) {
       strncpy(tpinfo->passwd, passwd, sizeof(tpinfo->passwd));
     }
-    if (cltname != nullptr) {
+    if (grpname != nullptr) {
       strncpy(tpinfo->grpname, grpname, sizeof(tpinfo->grpname));
     }
     tpinfo->flags = flags;
