@@ -90,8 +90,8 @@ static PyObject *TuxedoException_code(PyObject *selfPtr, void *closure) {
 }
 
 static PyGetSetDef TuxedoException_getsetters[] = {
-    {const_cast<char *>("code"), TuxedoException_code, NULL, NULL, NULL},
-    {NULL}};
+    {const_cast<char *>("code"), TuxedoException_code, nullptr, nullptr, nullptr},
+    {nullptr}};
 
 struct client {
   client() {}
@@ -619,21 +619,21 @@ extern int _tmbuilt_with_thread_option;
 }
 
 static struct tmdsptchtbl_t _tmdsptchtbl[] = {
-    {(char *)"", (char *)"PY", PY, 0, 0}, {NULL, NULL, NULL, 0, 0}};
+    {(char *)"", (char *)"PY", PY, 0, 0}, {nullptr, nullptr, nullptr, 0, 0}};
 
-static struct tmsvrargs_t tmsvrargs = {NULL,        &_tmdsptchtbl[0],
+static struct tmsvrargs_t tmsvrargs = {nullptr,        &_tmdsptchtbl[0],
                                        0,           tpsvrinit,
                                        tpsvrdone,   _tmrunserver,
-                                       NULL,        NULL,
-                                       NULL,        NULL,
+                                       nullptr,        nullptr,
+                                       nullptr,        nullptr,
                                        tprminit,    tpsvrthrinit,
                                        tpsvrthrdone};
 
 typedef void *(xao_svc_ctx)(void *);
 static xao_svc_ctx *xao_svc_ctx_ptr;
 struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
-  tmsvrargs.reserved1 = NULL;
-  tmsvrargs.reserved2 = NULL;
+  tmsvrargs.reserved1 = nullptr;
+  tmsvrargs.reserved2 = nullptr;
   // tmsvrargs.xa_switch = &xaosw;
   if (strcasecmp(rmname, "NONE") == 0) {
     tmsvrargs.xa_switch = &tmnull_switch;
@@ -700,7 +700,7 @@ PYBIND11_MODULE(tuxedo, m) {
       });
 
   static PyObject *XatmiException =
-      PyErr_NewException("tuxedo.XatmiException", NULL, NULL);
+      PyErr_NewException("tuxedo.XatmiException", nullptr, nullptr);
 
   if (XatmiException) {
     PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(XatmiException);
@@ -713,7 +713,7 @@ PYBIND11_MODULE(tuxedo, m) {
     m.add_object("XatmiException", py::handle(XatmiException));
   }
   static PyObject *Fml32Exception =
-      PyErr_NewException("tuxedo.Fml32Exception", NULL, NULL);
+      PyErr_NewException("tuxedo.Fml32Exception", nullptr, nullptr);
   if (Fml32Exception) {
     PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(Fml32Exception);
     as_type->tp_str = TuxedoException_tp_str;
