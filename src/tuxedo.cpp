@@ -90,7 +90,8 @@ static PyObject *TuxedoException_code(PyObject *selfPtr, void *closure) {
 }
 
 static PyGetSetDef TuxedoException_getsetters[] = {
-    {const_cast<char *>("code"), TuxedoException_code, nullptr, nullptr, nullptr},
+    {const_cast<char *>("code"), TuxedoException_code, nullptr, nullptr,
+     nullptr},
     {nullptr}};
 
 struct client {
@@ -101,24 +102,51 @@ struct client {
     if (tpgetctxt(&context, 0) != -1 && context >= 0) {
       return;
     }
+    _init(
+        [client](TPINIT *tpinfo) {
+          if (client) {
+            if (tpinit(tpinfo) == -1) {
+              throw xatmi_exception(tperrno);
+            }
+          } else {
+            if (tpappthrinit(tpinfo) == -1) {
+              throw xatmi_exception(tperrno);
+            }
+          }
+        },
+        nullptr, "tpsysadm", nullptr, nullptr, TPMULTICONTEXTS);
+  }
+  client(std::function<void(TPINIT *)> f, const char *usrname,
+         const char *cltname, const char *passwd, const char *grpname,
+         long flags) {
+    _init(f, usrname, cltname, passwd, grpname, flags);
+  }
 
+  void _init(std::function<void(TPINIT *)> f, const char *usrname,
+             const char *cltname, const char *passwd, const char *grpname,
+             long flags) {
     std::unique_ptr<char, decltype(&tpfree)> guard(
         tpalloc(const_cast<char *>("TPINIT"), nullptr, TPINITNEED(16)),
         &tpfree);
-    TPINIT *tpinitbuf = reinterpret_cast<TPINIT *>(guard.get());
-    memset(tpinitbuf, 0, sizeof(*tpinitbuf));
-    strcpy(tpinitbuf->cltname, "tpsysadm");
-    tpinitbuf->flags = TPMULTICONTEXTS;
-    if (client) {
-      if (tpinit(tpinitbuf) == -1) {
-        throw xatmi_exception(tperrno);
-      }
-    } else {
-      if (tpappthrinit(tpinitbuf) == -1) {
-        throw xatmi_exception(tperrno);
-      }
+    TPINIT *tpinfo = reinterpret_cast<TPINIT *>(guard.get());
+    memset(tpinfo, 0, sizeof(*tpinfo));
+
+    if (usrname != nullptr) {
+      strncpy(tpinfo->usrname, usrname, sizeof(tpinfo->usrname));
     }
+    if (cltname != nullptr) {
+      strncpy(tpinfo->cltname, cltname, sizeof(tpinfo->cltname));
+    }
+    if (cltname != nullptr) {
+      strncpy(tpinfo->passwd, passwd, sizeof(tpinfo->passwd));
+    }
+    if (cltname != nullptr) {
+      strncpy(tpinfo->grpname, grpname, sizeof(tpinfo->grpname));
+    }
+    tpinfo->flags = flags;
+    f(tpinfo);
   }
+
   ~client() {}
   client(const client &) = delete;
   client &operator=(const client &) = delete;
@@ -621,13 +649,10 @@ extern int _tmbuilt_with_thread_option;
 static struct tmdsptchtbl_t _tmdsptchtbl[] = {
     {(char *)"", (char *)"PY", PY, 0, 0}, {nullptr, nullptr, nullptr, 0, 0}};
 
-static struct tmsvrargs_t tmsvrargs = {nullptr,        &_tmdsptchtbl[0],
-                                       0,           tpsvrinit,
-                                       tpsvrdone,   _tmrunserver,
-                                       nullptr,        nullptr,
-                                       nullptr,        nullptr,
-                                       tprminit,    tpsvrthrinit,
-                                       tpsvrthrdone};
+static struct tmsvrargs_t tmsvrargs = {
+    nullptr,      &_tmdsptchtbl[0], 0,           tpsvrinit, tpsvrdone,
+    _tmrunserver, nullptr,          nullptr,     nullptr,   nullptr,
+    tprminit,     tpsvrthrinit,     tpsvrthrdone};
 
 typedef void *(xao_svc_ctx)(void *);
 static xao_svc_ctx *xao_svc_ctx_ptr;
@@ -685,8 +710,8 @@ PYBIND11_MODULE(tuxedo, m) {
       .def_readonly("rval", &pytpreply::rval)
       .def_readonly("rcode", &pytpreply::rcode)
       .def_readonly("data", &pytpreply::data)
-      .def_readonly("cd", &pytpreply::cd)  // Does not unpack as the use is rare
-                                           // case of tpgetrply(TPGETANY)
+      .def_readonly("cd", &pytpreply::cd)  // Does not unpack as the use is
+                                           // rare case of tpgetrply(TPGETANY)
       .def("__getitem__", [](const pytpreply &s, size_t i) -> py::object {
         if (i == 0) {
           return py::int_(s.rval);
@@ -753,6 +778,61 @@ PYBIND11_MODULE(tuxedo, m) {
             (*xao_svc_ctx_ptr)(nullptr));
       },
       "Returns the OCI service handle for a given XA connection");
+
+  m.def(
+      "tpinit",
+      [](const char *usrname, const char *cltname, const char *passwd,
+         const char *grpname, long flags) {
+        py::gil_scoped_release release;
+        tclient.reset(new client(
+            [](TPINIT *tpinfo) {
+              if (tpinit(tpinfo) == -1) {
+                throw xatmi_exception(tperrno);
+              }
+            },
+            usrname, cltname, passwd, grpname, flags));
+      },
+      "Joins an application", py::arg("usrname"), py::arg("cltname"),
+      py::arg("passwd"), py::arg("grpname"), py::arg("flags") = 0);
+
+  m.def(
+      "tpterm",
+      []() {
+        py::gil_scoped_release release;
+        tclient.reset();
+        if (tpterm() == -1) {
+          throw xatmi_exception(tperrno);
+        }
+      },
+      "Leaves an application");
+
+  m.def(
+      "tpappthrinit",
+      [](const char *usrname, const char *cltname, const char *passwd,
+         const char *grpname, long flags) {
+        py::gil_scoped_release release;
+        tclient.reset(new client(
+            [](TPINIT *tpinfo) {
+              if (tpappthrinit(tpinfo) == -1) {
+                throw xatmi_exception(tperrno);
+              }
+            },
+            usrname, cltname, passwd, grpname, flags));
+      },
+      "Joins an application", py::arg("usrname"), py::arg("cltname"),
+      py::arg("passwd"), py::arg("grpname"), py::arg("flags") = 0);
+
+  m.def(
+      "tpappthrterm",
+      []() {
+        py::gil_scoped_release release;
+        tclient.reset();
+        if (tpappthrterm() == -1) {
+          throw xatmi_exception(tperrno);
+        }
+      },
+      "Routine for creating and initializing a new Tuxedo context in an "
+      "application-created server thread.");
 
   m.def(
       "tpbegin",
@@ -1018,6 +1098,8 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("BADFLDID") = py::int_(BADFLDID);
 
   m.attr("TPEX_STRING") = py::int_(TPEX_STRING);
+
+  m.attr("TPMULTICONTEXTS") = py::int_(TPMULTICONTEXTS);
 
   m.doc() =
       R"(Python3 bindings for writing Oracle Tuxedo clients and servers
