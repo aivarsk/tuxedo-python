@@ -16,4 +16,3 @@ if __name__ == '__main__':
     t.tpcall('MEMPUT', {'KEY': ['B', 'C'], 'VALUE': ['b', 'c']})
     _, _, data = t.tpcall('MEMGET', {'KEY': ['B', 'C', 'A']})
     assert data['VALUE'] == ['b', 'c', 'a']
-

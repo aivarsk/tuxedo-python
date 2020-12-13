@@ -28,7 +28,6 @@ class Server:
             self._rates = {}
             for r in x.findall('.//*[@currency]'):
                 self._rates[r.attrib['currency']] = float(r.attrib['rate'])
-        
         return t.tpreturn(t.TPSUCCESS, 0, {'RATE': self._rates[args['CURRENCY'][0]]})
 
     def RELOAD(self, args):
