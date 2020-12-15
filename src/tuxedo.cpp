@@ -540,36 +540,6 @@ static pytpreply pytpgetrply(int cd, long flags) {
   return pytpreply(tperrno, tpurcode, to_py(std::move(out)), cd);
 }
 
-static pytpreply pytpdequeue(const char *qspace, const char *qname, long flags) {
-  default_client();
-  TPQCTL ctl;
-  memset(&ctl, 0, sizeof(ctl));
-
-  xatmibuf out("FML32", 1024);
-  {
-    py::gil_scoped_release release;
-    int rc = tpdequeue(const_cast<char *>(qspace), const_cast<char *>(qname), &ctl, out.pp, &out.len, flags);
-    if (rc == -1) {
-     throw xatmi_exception(tperrno);
-    }
-  }
-  return pytpreply(tperrno, ctl.urcode, to_py(std::move(out)), 0);
-}
-
-static int pytpenqueue(const char *qspace, const char *qname, py::object idata, long flags) {
-  default_client();
-  auto in = from_py(idata);
-  TPQCTL ctl;
-  memset(&ctl, 0, sizeof(ctl));
-
-  py::gil_scoped_release release;
-  int rc = tpenqueue(const_cast<char *>(qspace), const_cast<char *>(qname), &ctl, *in.pp, in.len, flags);
-  if (rc == -1) {
-    throw xatmi_exception(tperrno);
-  }
-  return rc;
-}
-
 int tpsvrinit(int argc, char *argv[]) {
   if (!tclient) {
     tclient.reset(new client());
@@ -961,8 +931,6 @@ PYBIND11_MODULE(tuxedo, m) {
         "Converts an exported representation back into a typed message buffer",
         py::arg("istr"), py::arg("flags") = 0);
 
-  m.def("tpdequeue", &pytpdequeue, py::arg("qspace"), py::arg("qname"), py::arg("flags") = 0);
-  m.def("tpenqueue", &pytpenqueue, py::arg("qspace"), py::arg("qname"), py::arg("idata"), py::arg("flags") = 0);
   m.def("tppost", &pytppost, "Posts an event", py::arg("eventname"),
         py::arg("data"), py::arg("flags") = 0);
 
