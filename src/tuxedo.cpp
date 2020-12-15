@@ -822,8 +822,9 @@ PYBIND11_MODULE(tuxedo, m) {
             },
             usrname, cltname, passwd, grpname, flags));
       },
-      "Joins an application", py::arg("usrname"), py::arg("cltname"),
-      py::arg("passwd"), py::arg("grpname"), py::arg("flags") = 0);
+      "Joins an application", py::arg("usrname") = nullptr,
+      py::arg("cltname") = nullptr, py::arg("passwd") = nullptr,
+      py::arg("grpname") = nullptr, py::arg("flags") = 0);
 
   m.def(
       "tpterm",
@@ -849,8 +850,9 @@ PYBIND11_MODULE(tuxedo, m) {
             },
             usrname, cltname, passwd, grpname, flags));
       },
-      "Joins an application", py::arg("usrname"), py::arg("cltname"),
-      py::arg("passwd"), py::arg("grpname"), py::arg("flags") = 0);
+      "Joins an application", py::arg("usrname") = nullptr,
+      py::arg("cltname") = nullptr, py::arg("passwd") = nullptr,
+      py::arg("grpname") = nullptr, py::arg("flags") = 0);
 
   m.def(
       "tpappthrterm",
