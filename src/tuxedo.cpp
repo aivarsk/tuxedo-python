@@ -441,7 +441,7 @@ static void pytpforward(const std::string &svc, py::object data, long flags) {
 static py::object pytpexport(py::object idata, long flags) {
   auto in = from_py(idata);
   std::vector<char> ostr;
-  ostr.reserve(in.len * 2);
+  ostr.resize(in.len * 2);
 
   long olen = ostr.capacity();
   int rc = tpexport(in.p, in.len, &ostr[0], &olen, flags);
@@ -601,11 +601,12 @@ void PY(TPSVCINFO *svcinfo) {
     auto idata = to_py(xatmibuf(svcinfo));
 
     auto &&func = server.attr(svcinfo->name);
-    auto &&signature = py::module::import("inspect").attr("signature");
-    if (py::len(signature(func).attr("parameters")) == 3) {
-      func(idata, svcinfo->flags);
-    } else {
+    auto &&argspec = py::module::import("inspect").attr("getargspec")(func);
+    if (py::len(argspec.attr("args")) == 2) {
       func(idata);
+    } else {
+      // TODO: argspec
+      func(idata, svcinfo->flags);
     }
     if (tsvcresult.clean) {
       userlog(const_cast<char *>("tpreturn() not called"));
@@ -694,14 +695,19 @@ struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
 static void pyrun(py::object svr, std::vector<std::string> args,
                   const char *rmname) {
   server = svr;
-
-  py::gil_scoped_release release;
-  _tmbuilt_with_thread_option = 1;
-  std::vector<char *> argv(args.size());
-  for (size_t i = 0; i < args.size(); i++) {
-    argv[i] = const_cast<char *>(args[i].c_str());
+  try {
+    py::gil_scoped_release release;
+    _tmbuilt_with_thread_option = 1;
+    std::vector<char *> argv(args.size());
+    for (size_t i = 0; i < args.size(); i++) {
+      argv[i] = const_cast<char *>(args[i].c_str());
+    }
+    (void)_tmstartserver(args.size(), &argv[0], _tmgetsvrargs(rmname));
+    server = py::none();
+  } catch (...) {
+    server = py::none();
+    throw;
   }
-  (void)_tmstartserver(args.size(), &argv[0], _tmgetsvrargs(rmname));
 }
 
 PYBIND11_MODULE(tuxedo, m) {

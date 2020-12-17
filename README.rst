@@ -85,7 +85,7 @@ Writing servers
 
 Tuxedo servers are written as Python classes. ``tpsvrinit`` method of object will be called when Tuxedo calls ``tpsvrinit(3c)`` function and it must return 0 on success or -1 on error. A common task for ``tpsvrinit`` is to advertise services the server provides by calling ``tuxedo.tpadvertise()`` with a service name. A method with the same name must exist. ``tpsvrdone``, ``tpsvrthrinit`` and ``tpsvrthrdone`` will be called when Tuxedo calls corresponding functions. All of these 4 methods are optional and ``tuxedo`` module always calls ``tpopen()`` and ``tpclose()`` functions before calling user-supplied methods.
 
-Each service method receives a single argument with incoming buffer and service must end with either call to ``tuxedo.tpreturn()`` or ``tuxedo.tpforward()``. Unlike in C ``tuxedo.tpreturn()`` and ``tuxedo.tpforward()`` do not perform ``longjmp`` but set up arguments for those calls once service method will return. Following two code fragments are equivalent but I believe the first one is less error-prone.
+Each service method receives a single argument with incoming buffer and service must end with either call to ``tuxedo.tpreturn()`` or ``tuxedo.tpforward()``. Unlike in C ``tuxedo.tpreturn()`` and ``tuxedo.tpforward()`` do not perform ``longjmp`` but set up arguments for those calls once service method will return. You can have a code that will execute after Python's ``tpreturn`` and it plays nicely with context managers. Following two code fragments are equivalent but I believe the first one is less error-prone.
 
 .. code:: python
 
