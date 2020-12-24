@@ -42,7 +42,9 @@ All demo code provided with the module works with both Oracle Tuxedo and Fuxedo 
 General
 -------
 
-``tuxedo`` module supports only ``STRING`` and ``FML32`` buffer types at the moment.
+``tuxedo`` module supports only ``STRING``, ``CARRAY`` and ``FML32`` buffer types at the moment.
+
+``CARRAY`` is mapped to/from Python ``bytes`` type.
 
 ``STRING`` is mapped to/from Python ``str`` type.
 
