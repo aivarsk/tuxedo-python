@@ -158,6 +158,7 @@ struct svcresult {
   int rval;
   long rcode;
   char *odata;
+  long olen;
   char name[XATMI_SERVICE_NAME_LENGTH];
   bool forward;
   bool clean;
@@ -165,7 +166,8 @@ struct svcresult {
 
 struct xatmibuf {
   xatmibuf() : pp(&p), len(0), p(nullptr) {}
-  xatmibuf(TPSVCINFO *svcinfo) : pp(&svcinfo->data), len(0), p(nullptr) {}
+  xatmibuf(TPSVCINFO *svcinfo)
+      : pp(&svcinfo->data), len(svcinfo->len), p(nullptr) {}
   xatmibuf(const char *type, long len) : pp(&p), len(len), p(nullptr) {
     reinit(type, len);
   }
@@ -300,7 +302,12 @@ static py::object to_py(FBFR32 *fbfr, FLDLEN32 buflen = 0) {
         break;
       case FLD_STRING:
         val.append(
-            py::str(PyUnicode_DecodeLocale(value.get(), "surrogateescape")));
+#if PY_MAJOR_VERSION >= 3
+            py::str(PyUnicode_DecodeLocale(value.get(), "surrogateescape"))
+#else
+            py::bytes(value.get(), len - 1)
+#endif
+        );
         break;
       case FLD_CARRAY:
         val.append(py::bytes(value.get(), len));
@@ -324,6 +331,8 @@ static py::object to_py(xatmibuf buf) {
   }
   if (strcmp(type, "STRING") == 0) {
     return py::cast(*buf.pp);
+  } else if (strcmp(type, "CARRAY") == 0 || strcmp(type, "X_OCTET") == 0) {
+    return py::bytes(*buf.pp, buf.len);
   } else if (strcmp(type, "FML32") == 0) {
     return to_py(*buf.fbfr());
   } else {
@@ -336,6 +345,7 @@ static void from_py1(xatmibuf &buf, FLDID32 fieldid, FLDOCC32 oc,
                      py::handle obj, xatmibuf &b) {
   if (obj.is_none()) {
     // pass
+#if PY_MAJOR_VERSION >= 3
   } else if (py::isinstance<py::bytes>(obj)) {
     std::string val(PyBytes_AsString(obj.ptr()), PyBytes_Size(obj.ptr()));
 
@@ -343,11 +353,18 @@ static void from_py1(xatmibuf &buf, FLDID32 fieldid, FLDOCC32 oc,
       return CFchg32(fbfr, fieldid, oc, const_cast<char *>(val.data()),
                      val.size(), FLD_CARRAY);
     });
+#endif
   } else if (py::isinstance<py::str>(obj)) {
+#if PY_MAJOR_VERSION >= 3
     py::bytes b = py::reinterpret_steal<py::bytes>(
         PyUnicode_EncodeLocale(obj.ptr(), "surrogateescape"));
     std::string val(PyBytes_AsString(b.ptr()), PyBytes_Size(b.ptr()));
-
+#else
+    if (PyUnicode_Check(obj.ptr())) {
+      obj = PyUnicode_AsEncodedString(obj.ptr(), "utf-8", "surrogateescape");
+    }
+    std::string val(PyString_AsString(obj.ptr()), PyString_Size(obj.ptr()));
+#endif
     buf.mutate([&](FBFR32 *fbfr) {
       return CFchg32(fbfr, fieldid, oc, const_cast<char *>(val.data()), 0,
                      FLD_STRING);
@@ -402,7 +419,11 @@ static void from_py(py::dict obj, xatmibuf &b) {
 }
 
 static xatmibuf from_py(py::object obj) {
-  if (py::isinstance<py::str>(obj)) {
+  if (py::isinstance<py::bytes>(obj)) {
+    xatmibuf buf("CARRAY", PyBytes_Size(obj.ptr()));
+    memcpy(*buf.pp, PyBytes_AsString(obj.ptr()), PyBytes_Size(obj.ptr()));
+    return buf;
+  } else if (py::isinstance<py::str>(obj)) {
     std::string s = py::str(obj);
     xatmibuf buf("STRING", s.size() + 1);
     strcpy(*buf.pp, s.c_str());
@@ -425,7 +446,9 @@ static void pytpreturn(int rval, long rcode, py::object data, long flags) {
   tsvcresult.clean = false;
   tsvcresult.rval = rval;
   tsvcresult.rcode = rcode;
-  tsvcresult.odata = from_py(data).release();
+  auto &&odata = from_py(data);
+  tsvcresult.olen = odata.len;
+  tsvcresult.odata = odata.release();
   tsvcresult.forward = false;
 }
 static void pytpforward(const std::string &svc, py::object data, long flags) {
@@ -434,7 +457,9 @@ static void pytpforward(const std::string &svc, py::object data, long flags) {
   }
   tsvcresult.clean = false;
   strncpy(tsvcresult.name, svc.c_str(), sizeof(tsvcresult.name));
-  tsvcresult.odata = from_py(data).release();
+  auto &&odata = from_py(data);
+  tsvcresult.olen = odata.len;
+  tsvcresult.odata = odata.release();
   tsvcresult.forward = true;
 }
 
@@ -602,12 +627,27 @@ void PY(TPSVCINFO *svcinfo) {
 
     auto &&func = server.attr(svcinfo->name);
     auto &&argspec = py::module::import("inspect").attr("getargspec")(func);
-    if (py::len(argspec.attr("args")) == 2) {
-      func(idata);
-    } else {
-      // TODO: argspec
-      func(idata, svcinfo->flags);
+    auto &&args = argspec.attr("args");
+    py::dict kwargs;
+    if (args.contains(py::str("name"))) {
+      kwargs[py::str("name")] = py::str(svcinfo->name);
     }
+    if (args.contains(py::str("flags"))) {
+      kwargs[py::str("flags")] = py::int_(svcinfo->flags);
+    }
+    if (args.contains(py::str("cd"))) {
+      kwargs[py::str("cd")] = py::int_(svcinfo->cd);
+    }
+    if (args.contains(py::str("appkey"))) {
+      kwargs[py::str("appkey")] = py::int_(svcinfo->appkey);
+    }
+    if (args.contains(py::str("cltid"))) {
+      kwargs[py::str("cltid")] = py::bytes(
+          reinterpret_cast<char *>(&svcinfo->cltid), sizeof(svcinfo->cltid));
+    }
+
+    func(idata, **kwargs);
+
     if (tsvcresult.clean) {
       userlog(const_cast<char *>("tpreturn() not called"));
       tpreturn(TPEXIT, 0, nullptr, 0, 0);
@@ -618,9 +658,10 @@ void PY(TPSVCINFO *svcinfo) {
   }
 
   if (tsvcresult.forward) {
-    tpforward(tsvcresult.name, tsvcresult.odata, 0, 0);
+    tpforward(tsvcresult.name, tsvcresult.odata, tsvcresult.olen, 0);
   } else {
-    tpreturn(tsvcresult.rval, tsvcresult.rcode, tsvcresult.odata, 0, 0);
+    tpreturn(tsvcresult.rval, tsvcresult.rcode, tsvcresult.odata,
+             tsvcresult.olen, 0);
   }
 }
 
