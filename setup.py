@@ -116,7 +116,6 @@ setup(
     description='Python3 bindings for writing Oracle Tuxedo clients and servers',
     long_description=open('README.rst').read(),
     ext_modules=ext_modules,
-    install_requires=['pybind11>=2.4'],
     setup_requires=['pybind11>=2.4'],
     cmdclass={'build_ext': BuildExt},
     classifiers=[
