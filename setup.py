@@ -5,8 +5,7 @@ import sys
 import setuptools
 
 __name__ = 'tuxedo'
-__version__ = '0.0.16'
-
+__version__ = '0.0.17'
 
 class get_pybind_include(object):
     """Helper class to determine the pybind11 include path
@@ -20,7 +19,6 @@ class get_pybind_include(object):
     def __str__(self):
         import pybind11
         return pybind11.get_include(self.user)
-
 
 ext_modules = [
     Extension(
@@ -53,7 +51,6 @@ def has_flag(compiler, flagname):
             return False
     return True
 
-
 def cpp_flag(compiler):
     """Return the -std=c++[11/14/17] compiler flag.
     The newer version is prefered over c++11 (when it is available).
@@ -65,7 +62,6 @@ def cpp_flag(compiler):
 
     raise RuntimeError('Unsupported compiler -- at least C++11 support '
                        'is needed!')
-
 
 class BuildExt(build_ext):
     """A custom build extension for adding compiler-specific options."""
@@ -99,7 +95,6 @@ class BuildExt(build_ext):
                     'winspool.lib',
                     '/MANIFEST'
                     ]
-
 
         for ext in self.extensions:
             ext.extra_compile_args = opts
