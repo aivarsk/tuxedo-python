@@ -466,7 +466,7 @@ static void pytpforward(const std::string &svc, py::object data, long flags) {
 static py::object pytpexport(py::object idata, long flags) {
   auto in = from_py(idata);
   std::vector<char> ostr;
-  ostr.resize(in.len * 2);
+  ostr.resize(512 + in.len * 2);
 
   long olen = ostr.capacity();
   int rc = tpexport(in.p, in.len, &ostr[0], &olen, flags);
