@@ -171,8 +171,9 @@ struct xatmibuf {
   xatmibuf(const char *type, long len) : pp(&p), len(len), p(nullptr) {
     reinit(type, len);
   }
-  void reinit(const char *type, long len) {
+  void reinit(const char *type, long len_) {
     if (*pp == nullptr) {
+      len = len_;
       *pp = tpalloc(const_cast<char *>(type), nullptr, len);
       if (*pp == nullptr) {
         throw std::bad_alloc();
@@ -367,8 +368,8 @@ static void from_py1(xatmibuf &buf, FLDID32 fieldid, FLDOCC32 oc,
     std::string val(PyString_AsString(obj.ptr()), PyString_Size(obj.ptr()));
 #endif
     buf.mutate([&](FBFR32 *fbfr) {
-      return CFchg32(fbfr, fieldid, oc, const_cast<char *>(val.data()), 0,
-                     FLD_STRING);
+      return CFchg32(fbfr, fieldid, oc, const_cast<char *>(val.data()),
+                     val.size(), FLD_CARRAY);
     });
   } else if (py::isinstance<py::int_>(obj)) {
     long val = obj.cast<py::int_>();
