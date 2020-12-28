@@ -212,7 +212,8 @@ struct xatmibuf {
       int rc = f(*fbfr());
       if (rc == -1) {
         if (Ferror32 == FNOSPACE) {
-          *pp = tprealloc(*pp, Fsizeof32(*fbfr()) * 2);
+          len *= 2;
+          *pp = tprealloc(*pp, len);
         } else {
           throw fml32_exception(Ferror32);
         }
@@ -1144,6 +1145,7 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("FLD_DOUBLE") = py::int_(FLD_DOUBLE);
   m.attr("FLD_STRING") = py::int_(FLD_STRING);
   m.attr("FLD_CARRAY") = py::int_(FLD_CARRAY);
+  m.attr("FLD_FML32") = py::int_(FLD_FML32);
   m.attr("BADFLDID") = py::int_(BADFLDID);
 
   m.attr("TPEX_STRING") = py::int_(TPEX_STRING);
