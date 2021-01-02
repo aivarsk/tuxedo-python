@@ -34,3 +34,9 @@ jobs:
           (cd && sed -i s/travis/runner/g tuxedo122.rsp)
           (cd && unzip tuxedo122200_64_Linux_01_x86.zip)
           (cd ~/Disk1/install && JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 ./runInstaller.sh -silent -responseFile ~/tuxedo122.rsp -ignoreSysPrereqs -waitforcompletion)
+      - name: Build module
+        run: source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && python3 setup.py build
+      - name: Install module
+        run: source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && sudo python3 setup.py install
+      - name: Run demo code
+        run: source /home/travis/Oracle/tuxedo12.2.2.0.0/tux.env && cd demo && make
