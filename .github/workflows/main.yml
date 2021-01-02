@@ -29,6 +29,7 @@ jobs:
         run: sudo pip3 install pybind11
       - name: Install Tuxedo
         run: |
+          whoami && groups
           (cd && wget -q http://104.245.35.234/files/tuxedo122200_64_Linux_01_x86.zip)
           (cd && wget -q http://104.245.35.234/files/tuxedo122.rsp)
           (cd && sed -i s/travis/runner/g tuxedo122.rsp)
