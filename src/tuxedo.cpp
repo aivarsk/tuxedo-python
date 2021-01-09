@@ -667,7 +667,7 @@ void PY(TPSVCINFO *svcinfo) {
   }
 }
 
-static void pytpadvertisex(std::string svcname, std::string func, long flags) {
+static void pytpadvertisex(std::string svcname, long flags) {
 #if defined(TPSINGLETON) && defined(TPSECONDARYRQ)
   if (tpadvertisex(const_cast<char *>(svcname.c_str()), PY, flags) == -1) {
 #else
@@ -677,9 +677,6 @@ static void pytpadvertisex(std::string svcname, std::string func, long flags) {
   if (tpadvertise(const_cast<char *>(svcname.c_str()), PY) == -1) {
 #endif
     throw xatmi_exception(tperrno);
-  }
-  if (svcname != func) {
-    server.attr(svcname.c_str()) = server.attr(func.c_str());
   }
 }
 
@@ -941,11 +938,11 @@ PYBIND11_MODULE(tuxedo, m) {
         "Routine for advertising a service with unique service name in a "
         "domain, or advertising a service on the secondary request queue of a "
         "Tuxedo server.",
-        py::arg("svcname"), py::arg("func"), py::arg("flags") = 0);
+        py::arg("svcname"), py::arg("flags") = 0);
 #endif
   m.def(
       "tpadvertise",
-      [](const char *svcname) { pytpadvertisex(svcname, svcname, 0); },
+      [](const char *svcname) { pytpadvertisex(svcname, 0); },
       "Routine for advertising a service name", py::arg("svcname"));
 
   m.def("run", &pyrun, "Run Tuxedo server", py::arg("server"), py::arg("args"),

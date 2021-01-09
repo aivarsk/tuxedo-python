@@ -14,7 +14,8 @@ class Server:
         self._rates = None
         t.userlog('Server startup')
         t.tpadvertise('GETRATE')
-        t.tpadvertisex('RELOAD_' + str(os.getpid()), 'RELOAD',  t.TPSINGLETON + t.TPSECONDARYRQ)
+        setattr(self, 'RELOAD_' + str(os.getpid()), self.RELOAD)
+        t.tpadvertisex('RELOAD_' + str(os.getpid()),  t.TPSINGLETON + t.TPSECONDARYRQ)
         return 0
 
     def tpsvrdone(self):
