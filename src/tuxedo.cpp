@@ -1150,6 +1150,14 @@ PYBIND11_MODULE(tuxedo, m) {
 
   m.attr("TPMULTICONTEXTS") = py::int_(TPMULTICONTEXTS);
 
+  m.attr("MIB_PREIMAGE") = py::int_(MIB_PREIMAGE);
+  m.attr("MIB_LOCAL") = py::int_(MIB_LOCAL);
+  m.attr("MIB_SELF") = py::int_(MIB_SELF);
+
+  m.attr("TAOK") = py::int_(TAOK);
+  m.attr("TAUPDATED") = py::int_(TAUPDATED);
+  m.attr("TAPARTIAL") = py::int_(TAPARTIAL);
+
   m.doc() =
       R"(Python3 bindings for writing Oracle Tuxedo clients and servers
 
