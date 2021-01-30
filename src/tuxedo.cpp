@@ -525,6 +525,37 @@ static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
   return pytpreply(tperrno, tpurcode, to_py(std::move(out)));
 }
 
+static TPQCTL pytpenqueue(const char *qspace, const char *qname, TPQCTL *ctl,
+                          py::object data, long flags) {
+  default_client();
+  auto in = from_py(data);
+  {
+    py::gil_scoped_release release;
+    int rc = tpenqueue(const_cast<char *>(qspace), const_cast<char *>(qname),
+                       ctl, *in.pp, in.len, flags);
+    if (rc == -1) {
+      throw xatmi_exception(tperrno);
+    }
+  }
+  return *ctl;
+}
+
+static std::pair<TPQCTL, py::object> pytpdequeue(const char *qspace,
+                                                 const char *qname, TPQCTL *ctl,
+                                                 long flags) {
+  default_client();
+  xatmibuf out("FML32", 1024);
+  {
+    py::gil_scoped_release release;
+    int rc = tpdequeue(const_cast<char *>(qspace), const_cast<char *>(qname),
+                       ctl, out.pp, &out.len, flags);
+    if (rc == -1) {
+      throw xatmi_exception(tperrno);
+    }
+  }
+  return std::make_pair(*ctl, to_py(std::move(out)));
+}
+
 static pytpreply pytpadmcall(py::object idata, long flags) {
   auto in = from_py(idata);
   xatmibuf out("FML32", 1024);
@@ -770,6 +801,55 @@ PYBIND11_MODULE(tuxedo, m) {
         }
       });
 
+  py::class_<TPQCTL>(m, "TPQCTL")
+      .def(py::init([](long flags, long deq_time, long priority, long exp_time,
+                       long urcode, long delivery_qos, long reply_qos,
+                       const char *msgid, const char *corrid,
+                       const char *replyqueue, const char *failurequeue) {
+             auto p = std::make_unique<TPQCTL>();
+             memset(p.get(), 0, sizeof(TPQCTL));
+             p->flags = flags;
+             p->deq_time = deq_time;
+             p->exp_time = exp_time;
+             p->priority = priority;
+             p->urcode = urcode;
+             p->delivery_qos = delivery_qos;
+             p->reply_qos = reply_qos;
+             if (msgid != nullptr) {
+               // Size limit and zero termination
+               snprintf(p->msgid, sizeof(p->msgid), "%s", msgid);
+             }
+             if (corrid != nullptr) {
+               snprintf(p->corrid, sizeof(p->corrid), "%s", corrid);
+             }
+             if (replyqueue != nullptr) {
+               snprintf(p->replyqueue, sizeof(p->replyqueue), "%s", replyqueue);
+             }
+             if (failurequeue != nullptr) {
+               snprintf(p->failurequeue, sizeof(p->failurequeue), "%s",
+                        failurequeue);
+             }
+             return p;
+           }),
+
+           py::arg("flags") = 0, py::arg("deq_time") = 0,
+           py::arg("priority") = 0, py::arg("exp_time") = 0,
+           py::arg("urcode") = 0, py::arg("delivery_qos") = 0,
+           py::arg("reply_qos") = 0, py::arg("msgid") = nullptr,
+           py::arg("corrid") = nullptr, py::arg("replyqueue") = nullptr,
+           py::arg("failurequeue") = nullptr)
+
+      .def_readonly("flags", &TPQCTL::flags)
+      .def_readonly("msgid", &TPQCTL::msgid)
+      .def_readonly("diagnostic", &TPQCTL::diagnostic)
+      .def_readonly("priority", &TPQCTL::priority)
+      .def_readonly("corrid", &TPQCTL::corrid)
+      .def_readonly("urcode", &TPQCTL::urcode)
+      .def_readonly("replyqueue", &TPQCTL::replyqueue)
+      .def_readonly("failurequeue", &TPQCTL::failurequeue)
+      .def_readonly("delivery_qos", &TPQCTL::delivery_qos)
+      .def_readonly("reply_qos", &TPQCTL::reply_qos);
+
   static PyObject *XatmiException =
       PyErr_NewException("tuxedo.XatmiException", nullptr, nullptr);
 
@@ -894,6 +974,35 @@ PYBIND11_MODULE(tuxedo, m) {
       py::arg("flags") = 0);
 
   m.def(
+      "tpsuspend",
+      [](long flags) {
+        TPTRANID tranid;
+        py::gil_scoped_release release;
+        if (tpsuspend(&tranid, flags) == -1) {
+          throw xatmi_exception(tperrno);
+        }
+        return py::bytes(reinterpret_cast<char *>(&tranid), sizeof(tranid));
+      },
+      "Suspend a global transaction", py::arg("flags") = 0);
+
+  m.def(
+      "tpresume",
+      [](py::bytes tranid, long flags) {
+        py::gil_scoped_release release;
+        if (tpresume(reinterpret_cast<TPTRANID *>(
+#if PY_MAJOR_VERSION >= 3
+                         PyBytes_AsString(tranid.ptr())
+#else
+                         PyString_AsString(tranid.ptr())
+#endif
+                             ),
+                     flags) == -1) {
+          throw xatmi_exception(tperrno);
+        }
+      },
+      "Resume a global transaction", py::arg("tranid"), py::arg("flags") = 0);
+
+  m.def(
       "tpcommit",
       [](long flags) {
         py::gil_scoped_release release;
@@ -941,12 +1050,19 @@ PYBIND11_MODULE(tuxedo, m) {
         py::arg("svcname"), py::arg("flags") = 0);
 #endif
   m.def(
-      "tpadvertise",
-      [](const char *svcname) { pytpadvertisex(svcname, 0); },
+      "tpadvertise", [](const char *svcname) { pytpadvertisex(svcname, 0); },
       "Routine for advertising a service name", py::arg("svcname"));
 
   m.def("run", &pyrun, "Run Tuxedo server", py::arg("server"), py::arg("args"),
         py::arg("rmname") = "NONE");
+
+  m.def("tpenqueue", &pytpenqueue, "Routine to enqueue a message.",
+        py::arg("qspace"), py::arg("qname"), py::arg("ctl"), py::arg("data"),
+        py::arg("flags") = 0);
+
+  m.def("tpdequeue", &pytpdequeue, "Routine to dequeue a message from a queue.",
+        py::arg("qspace"), py::arg("qname"), py::arg("ctl"),
+        py::arg("flags") = 0);
 
   m.def("tpcall", &pytpcall,
         "Routine for sending service request and awaiting its reply",
@@ -979,6 +1095,29 @@ PYBIND11_MODULE(tuxedo, m) {
 
   m.def("tppost", &pytppost, "Posts an event", py::arg("eventname"),
         py::arg("data"), py::arg("flags") = 0);
+
+  m.def(
+      "tpgblktime",
+      [](long flags) {
+        int rc = tpgblktime(flags);
+        if (rc == -1) {
+          throw xatmi_exception(tperrno);
+        }
+        return rc;
+      },
+      "Retrieves a previously set, per second or millisecond, blocktime value",
+      py::arg("flags"));
+
+  m.def(
+      "tpsblktime",
+      [](int blktime, long flags) {
+        if (tpsblktime(blktime, flags) == -1) {
+          throw xatmi_exception(tperrno);
+        }
+      },
+      "Routine for setting blocktime in seconds or milliseconds for the next "
+      "service call or for all service calls",
+      py::arg("blktime"), py::arg("flags"));
 
   m.def(
       "Fldtype32", [](FLDID32 fieldid) { return Fldtype32(fieldid); },
@@ -1158,6 +1297,35 @@ PYBIND11_MODULE(tuxedo, m) {
   m.attr("TAUPDATED") = py::int_(TAUPDATED);
   m.attr("TAPARTIAL") = py::int_(TAPARTIAL);
 
+  m.attr("TPBLK_NEXT") = py::int_(TPBLK_NEXT);
+  m.attr("TPBLK_ALL") = py::int_(TPBLK_ALL);
+  m.attr("TPBLK_SECOND") = py::int_(TPBLK_SECOND);
+  m.attr("TPBLK_MILLISECOND") = py::int_(TPBLK_MILLISECOND);
+
+  m.attr("TPQCORRID") = py::int_(TPQCORRID);
+  m.attr("TPQFAILUREQ") = py::int_(TPQFAILUREQ);
+  m.attr("TPQBEFOREMSGID") = py::int_(TPQBEFOREMSGID);
+  m.attr("TPQGETBYMSGIDOLD") = py::int_(TPQGETBYMSGIDOLD);
+  m.attr("TPQMSGID") = py::int_(TPQMSGID);
+  m.attr("TPQPRIORITY") = py::int_(TPQPRIORITY);
+  m.attr("TPQTOP") = py::int_(TPQTOP);
+  m.attr("TPQWAIT") = py::int_(TPQWAIT);
+  m.attr("TPQREPLYQ") = py::int_(TPQREPLYQ);
+  m.attr("TPQTIME_ABS") = py::int_(TPQTIME_ABS);
+  m.attr("TPQTIME_REL") = py::int_(TPQTIME_REL);
+  m.attr("TPQGETBYCORRIDOLD") = py::int_(TPQGETBYCORRIDOLD);
+  m.attr("TPQPEEK") = py::int_(TPQPEEK);
+  m.attr("TPQDELIVERYQOS") = py::int_(TPQDELIVERYQOS);
+  m.attr("TPQREPLYQOS  ") = py::int_(TPQREPLYQOS);
+  m.attr("TPQEXPTIME_ABS") = py::int_(TPQEXPTIME_ABS);
+  m.attr("TPQEXPTIME_REL") = py::int_(TPQEXPTIME_REL);
+  m.attr("TPQEXPTIME_NONE ") = py::int_(TPQEXPTIME_NONE);
+  m.attr("TPQGETBYMSGID") = py::int_(TPQGETBYMSGID);
+  m.attr("TPQGETBYCORRID") = py::int_(TPQGETBYCORRID);
+  m.attr("TPQQOSDEFAULTPERSIST") = py::int_(TPQQOSDEFAULTPERSIST);
+  m.attr("TPQQOSPERSISTENT ") = py::int_(TPQQOSPERSISTENT);
+  m.attr("TPQQOSNONPERSISTENT") = py::int_(TPQQOSNONPERSISTENT);
+
   m.doc() =
       R"(Python3 bindings for writing Oracle Tuxedo clients and servers
 
@@ -1182,5 +1350,39 @@ Flags to tpreturn:
 - TPFAIL - service FAILURE for tpreturn
 - TPEXIT - service FAILURE with server exit
 - TPSUCCESS - service SUCCESS for tpreturn
+
+Flags to tpsblktime/tpgblktime:
+
+- TPBLK_MILLISECOND - This flag sets the blocktime value, in milliseconds.
+- TPBLK_SECOND - This flag sets the blocktime value, in seconds. This is default behavior.
+- TPBLK_NEXT - This flag sets the blocktime value for the next potential blocking API.
+- TPBLK_ALL - This flag sets the blocktime value for the all subsequent potential blocking APIs.
+
+Flags to tpenqueue/tpdequeue:
+
+- TPQCORRID - set/get correlation id
+- TPQFAILUREQ - set/get failure queue
+- TPQBEFOREMSGID - enqueue before message id
+- TPQGETBYMSGIDOLD - deprecated
+- TPQMSGID - get msgid of enq/deq message
+- TPQPRIORITY - set/get message priority
+- TPQTOP - enqueue at queue top
+- TPQWAIT - wait for dequeuing
+- TPQREPLYQ - set/get reply queue
+- TPQTIME_ABS - set absolute time
+- TPQTIME_REL - set absolute time
+- TPQGETBYCORRIDOLD - deprecated
+- TPQPEEK - peek
+- TPQDELIVERYQOS - delivery quality of service
+- TPQREPLYQOS   - reply message quality of service
+- TPQEXPTIME_ABS - absolute expiration time
+- TPQEXPTIME_REL - relative expiration time
+- TPQEXPTIME_NONE  - never expire
+- TPQGETBYMSGID - dequeue by msgid
+- TPQGETBYCORRID - dequeue by corrid
+- TPQQOSDEFAULTPERSIST - queue's default persistence policy
+- TPQQOSPERSISTENT  - disk message
+- TPQQOSNONPERSISTENT - memory message
+
 )";
 }
