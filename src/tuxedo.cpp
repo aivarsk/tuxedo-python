@@ -1099,6 +1099,7 @@ PYBIND11_MODULE(tuxedo, m) {
   m.def(
       "tpgblktime",
       [](long flags) {
+        default_client();
         int rc = tpgblktime(flags);
         if (rc == -1) {
           throw xatmi_exception(tperrno);
@@ -1111,6 +1112,7 @@ PYBIND11_MODULE(tuxedo, m) {
   m.def(
       "tpsblktime",
       [](int blktime, long flags) {
+        default_client();
         if (tpsblktime(blktime, flags) == -1) {
           throw xatmi_exception(tperrno);
         }
