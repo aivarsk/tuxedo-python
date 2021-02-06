@@ -94,17 +94,17 @@ static PyGetSetDef TuxedoException_getsetters[] = {
      nullptr},
     {nullptr}};
 
-struct client {
-  client() {}
+struct context {
+  context() {}
   // TODO: real params
-  explicit client(bool client) {
-    TPCONTEXT_T context;
-    if (tpgetctxt(&context, 0) != -1 && context >= 0) {
+  explicit context(bool is_context) {
+    TPCONTEXT_T tpcontext;
+    if (tpgetctxt(&tpcontext, 0) != -1 && tpcontext >= 0) {
       return;
     }
     _init(
-        [client](TPINIT *tpinfo) {
-          if (client) {
+        [is_context](TPINIT *tpinfo) {
+          if (is_context) {
             if (tpinit(tpinfo) == -1) {
               throw xatmi_exception(tperrno);
             }
@@ -116,7 +116,7 @@ struct client {
         },
         nullptr, "tpsysadm", nullptr, nullptr, TPMULTICONTEXTS);
   }
-  client(std::function<void(TPINIT *)> f, const char *usrname,
+  context(std::function<void(TPINIT *)> f, const char *usrname,
          const char *cltname, const char *passwd, const char *grpname,
          long flags) {
     _init(f, usrname, cltname, passwd, grpname, flags);
@@ -147,11 +147,11 @@ struct client {
     f(tpinfo);
   }
 
-  ~client() {}
-  client(const client &) = delete;
-  client &operator=(const client &) = delete;
-  client(client &&) = delete;
-  client &operator=(client &&) = delete;
+  ~context() {}
+  context(const context &) = delete;
+  context &operator=(const context &) = delete;
+  context(context &&) = delete;
+  context &operator=(context &&) = delete;
 };
 
 struct svcresult {
@@ -244,12 +244,12 @@ struct pytpreply {
 };
 
 static py::object server;
-static thread_local std::unique_ptr<client> tclient;
+static thread_local std::unique_ptr<context> thread_context;
 static thread_local svcresult tsvcresult;
 
-static void default_client() {
-  if (!tclient) {
-    tclient.reset(new client(server.ptr() == nullptr));
+static void with_context() {
+  if (!thread_context) {
+    thread_context.reset(new context(server.ptr() == nullptr));
   }
 }
 
@@ -509,7 +509,7 @@ static void pytppost(const std::string eventname, py::object data, long flags) {
 }
 
 static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
-  default_client();
+  with_context();
   auto in = from_py(idata);
   xatmibuf out("FML32", 1024);
   {
@@ -527,7 +527,7 @@ static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
 
 static TPQCTL pytpenqueue(const char *qspace, const char *qname, TPQCTL *ctl,
                           py::object data, long flags) {
-  default_client();
+  with_context();
   auto in = from_py(data);
   {
     py::gil_scoped_release release;
@@ -543,7 +543,7 @@ static TPQCTL pytpenqueue(const char *qspace, const char *qname, TPQCTL *ctl,
 static std::pair<TPQCTL, py::object> pytpdequeue(const char *qspace,
                                                  const char *qname, TPQCTL *ctl,
                                                  long flags) {
-  default_client();
+  with_context();
   xatmibuf out("FML32", 1024);
   {
     py::gil_scoped_release release;
@@ -572,7 +572,7 @@ static pytpreply pytpadmcall(py::object idata, long flags) {
 }
 
 static int pytpacall(const char *svc, py::object idata, long flags) {
-  default_client();
+  with_context();
   auto in = from_py(idata);
 
   py::gil_scoped_release release;
@@ -584,7 +584,7 @@ static int pytpacall(const char *svc, py::object idata, long flags) {
 }
 
 static pytpreply pytpgetrply(int cd, long flags) {
-  default_client();
+  with_context();
   xatmibuf out("FML32", 1024);
   {
     py::gil_scoped_release release;
@@ -599,8 +599,8 @@ static pytpreply pytpgetrply(int cd, long flags) {
 }
 
 int tpsvrinit(int argc, char *argv[]) {
-  if (!tclient) {
-    tclient.reset(new client());
+  if (!thread_context) {
+    thread_context.reset(new context());
   }
   if (tpopen() == -1) {
     userlog(const_cast<char *>("Failed tpopen() = %d / %s"), tperrno,
@@ -624,8 +624,8 @@ void tpsvrdone() {
   }
 }
 int tpsvrthrinit(int argc, char *argv[]) {
-  if (!tclient) {
-    tclient.reset(new client());
+  if (!thread_context) {
+    thread_context.reset(new context());
   }
   if (tpopen() == -1) {
     userlog(const_cast<char *>("Failed tpopen() = %d / %s"), tperrno,
@@ -649,8 +649,8 @@ void tpsvrthrdone() {
   }
 }
 void PY(TPSVCINFO *svcinfo) {
-  if (!tclient) {
-    tclient.reset(new client());
+  if (!thread_context) {
+    thread_context.reset(new context());
   }
   tsvcresult.clean = true;
 
@@ -910,7 +910,7 @@ PYBIND11_MODULE(tuxedo, m) {
       [](const char *usrname, const char *cltname, const char *passwd,
          const char *grpname, long flags) {
         py::gil_scoped_release release;
-        tclient.reset(new client(
+        thread_context.reset(new context(
             [](TPINIT *tpinfo) {
               if (tpinit(tpinfo) == -1) {
                 throw xatmi_exception(tperrno);
@@ -926,7 +926,7 @@ PYBIND11_MODULE(tuxedo, m) {
       "tpterm",
       []() {
         py::gil_scoped_release release;
-        tclient.reset();
+        thread_context.reset();
         if (tpterm() == -1) {
           throw xatmi_exception(tperrno);
         }
@@ -938,7 +938,7 @@ PYBIND11_MODULE(tuxedo, m) {
       [](const char *usrname, const char *cltname, const char *passwd,
          const char *grpname, long flags) {
         py::gil_scoped_release release;
-        tclient.reset(new client(
+        thread_context.reset(new context(
             [](TPINIT *tpinfo) {
               if (tpappthrinit(tpinfo) == -1) {
                 throw xatmi_exception(tperrno);
@@ -946,7 +946,8 @@ PYBIND11_MODULE(tuxedo, m) {
             },
             usrname, cltname, passwd, grpname, flags));
       },
-      "Joins an application", py::arg("usrname") = nullptr,
+      "Routine for creating and initializing a new Tuxedo context in an "
+      "application-created server thread.", py::arg("usrname") = nullptr,
       py::arg("cltname") = nullptr, py::arg("passwd") = nullptr,
       py::arg("grpname") = nullptr, py::arg("flags") = 0);
 
@@ -954,13 +955,12 @@ PYBIND11_MODULE(tuxedo, m) {
       "tpappthrterm",
       []() {
         py::gil_scoped_release release;
-        tclient.reset();
+        thread_context.reset();
         if (tpappthrterm() == -1) {
           throw xatmi_exception(tperrno);
         }
       },
-      "Routine for creating and initializing a new Tuxedo context in an "
-      "application-created server thread.");
+      "Routine for terminating Tuxedo User context in a server process");
 
   m.def(
       "tpbegin",
@@ -1099,7 +1099,7 @@ PYBIND11_MODULE(tuxedo, m) {
   m.def(
       "tpgblktime",
       [](long flags) {
-        default_client();
+        with_context();
         int rc = tpgblktime(flags);
         if (rc == -1) {
           throw xatmi_exception(tperrno);
@@ -1112,7 +1112,7 @@ PYBIND11_MODULE(tuxedo, m) {
   m.def(
       "tpsblktime",
       [](int blktime, long flags) {
-        default_client();
+        with_context();
         if (tpsblktime(blktime, flags) == -1) {
           throw xatmi_exception(tperrno);
         }
