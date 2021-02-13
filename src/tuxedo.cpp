@@ -97,32 +97,21 @@ static PyGetSetDef TuxedoException_getsetters[] = {
 struct context {
   context() {}
   // TODO: real params
-  explicit context(bool is_context) {
+  explicit context(bool is_client) {
     TPCONTEXT_T tpcontext;
     if (tpgetctxt(&tpcontext, 0) != -1 && tpcontext >= 0) {
       return;
     }
-    _init(
-        [is_context](TPINIT *tpinfo) {
-          if (is_context) {
-            if (tpinit(tpinfo) == -1) {
-              throw xatmi_exception(tperrno);
-            }
-          } else {
-            if (tpappthrinit(tpinfo) == -1) {
-              throw xatmi_exception(tperrno);
-            }
-          }
-        },
-        nullptr, "tpsysadm", nullptr, nullptr, TPMULTICONTEXTS);
+    _init(is_client ? tpinit : tpappthrinit, nullptr, "tpsysadm", nullptr,
+          nullptr, TPMULTICONTEXTS);
   }
-  context(std::function<void(TPINIT *)> f, const char *usrname,
-         const char *cltname, const char *passwd, const char *grpname,
-         long flags) {
-    _init(f, usrname, cltname, passwd, grpname, flags);
+  context(std::function<int(TPINIT *)> initfunc, const char *usrname,
+          const char *cltname, const char *passwd, const char *grpname,
+          long flags) {
+    _init(initfunc, usrname, cltname, passwd, grpname, flags);
   }
 
-  void _init(std::function<void(TPINIT *)> f, const char *usrname,
+  void _init(std::function<int(TPINIT *)> initfunc, const char *usrname,
              const char *cltname, const char *passwd, const char *grpname,
              long flags) {
     std::unique_ptr<char, decltype(&tpfree)> guard(
@@ -144,7 +133,9 @@ struct context {
       strncpy(tpinfo->grpname, grpname, sizeof(tpinfo->grpname));
     }
     tpinfo->flags = flags;
-    f(tpinfo);
+    if (initfunc(tpinfo) == -1) {
+      throw xatmi_exception(tperrno);
+    }
   }
 
   ~context() {}
@@ -910,13 +901,8 @@ PYBIND11_MODULE(tuxedo, m) {
       [](const char *usrname, const char *cltname, const char *passwd,
          const char *grpname, long flags) {
         py::gil_scoped_release release;
-        thread_context.reset(new context(
-            [](TPINIT *tpinfo) {
-              if (tpinit(tpinfo) == -1) {
-                throw xatmi_exception(tperrno);
-              }
-            },
-            usrname, cltname, passwd, grpname, flags));
+        thread_context.reset(
+            new context(tpinit, usrname, cltname, passwd, grpname, flags));
       },
       "Joins an application", py::arg("usrname") = nullptr,
       py::arg("cltname") = nullptr, py::arg("passwd") = nullptr,
@@ -938,18 +924,14 @@ PYBIND11_MODULE(tuxedo, m) {
       [](const char *usrname, const char *cltname, const char *passwd,
          const char *grpname, long flags) {
         py::gil_scoped_release release;
-        thread_context.reset(new context(
-            [](TPINIT *tpinfo) {
-              if (tpappthrinit(tpinfo) == -1) {
-                throw xatmi_exception(tperrno);
-              }
-            },
-            usrname, cltname, passwd, grpname, flags));
+        thread_context.reset(new context(tpappthrinit, usrname, cltname, passwd,
+                                         grpname, flags));
       },
       "Routine for creating and initializing a new Tuxedo context in an "
-      "application-created server thread.", py::arg("usrname") = nullptr,
-      py::arg("cltname") = nullptr, py::arg("passwd") = nullptr,
-      py::arg("grpname") = nullptr, py::arg("flags") = 0);
+      "application-created server thread.",
+      py::arg("usrname") = nullptr, py::arg("cltname") = nullptr,
+      py::arg("passwd") = nullptr, py::arg("grpname") = nullptr,
+      py::arg("flags") = 0);
 
   m.def(
       "tpappthrterm",
