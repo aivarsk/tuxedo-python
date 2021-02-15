@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - name: Install dependencies
-        run: sudo apt-get install gcc-8 python3-pip python3-setuptools openjdk-8-jdk
+        run: sudo apt update && apt-get install gcc-8 python3-pip python3-setuptools openjdk-8-jdk
       - uses: actions/checkout@v2
       - name: Install pybind11
         run: sudo pip3 install pybind11
