@@ -61,42 +61,8 @@ struct fml32_exception : public std::exception {
   int code() const noexcept { return code_; }
 };
 
-static PyObject *TuxedoException_tp_str(PyObject *selfPtr) {
-  py::str ret;
-  try {
-    py::handle self(selfPtr);
-    py::tuple args = self.attr("args");
-    ret = py::str(args[0]);
-  } catch (py::error_already_set &e) {
-    ret = "";
-  }
-
-  ret.inc_ref();
-  return ret.ptr();
-}
-
-static PyObject *TuxedoException_code(PyObject *selfPtr, void *closure) {
-  try {
-    py::handle self(selfPtr);
-    py::tuple args = self.attr("args");
-    py::object code = args[1];
-    code.inc_ref();
-    return code.ptr();
-  } catch (py::error_already_set &e) {
-    py::none ret;
-    ret.inc_ref();
-    return ret.ptr();
-  }
-}
-
-static PyGetSetDef TuxedoException_getsetters[] = {
-    {const_cast<char *>("code"), TuxedoException_code, nullptr, nullptr,
-     nullptr},
-    {nullptr}};
-
 struct context {
   context() {}
-  // TODO: real params
   explicit context(bool is_client) {
     TPCONTEXT_T tpcontext;
     if (tpgetctxt(&tpcontext, 0) != -1 && tpcontext >= 0) {
@@ -704,7 +670,6 @@ static void pytpadvertisex(std::string svcname, long flags) {
 
 extern "C" {
 int _tmrunserver(int);
-extern struct xa_switch_t xaosw;
 extern struct xa_switch_t tmnull_switch;
 extern int _tmbuilt_with_thread_option;
 }
@@ -722,7 +687,6 @@ static xao_svc_ctx *xao_svc_ctx_ptr;
 struct tmsvrargs_t *_tmgetsvrargs(const char *rmname) {
   tmsvrargs.reserved1 = nullptr;
   tmsvrargs.reserved2 = nullptr;
-  // tmsvrargs.xa_switch = &xaosw;
   if (strcasecmp(rmname, "NONE") == 0) {
     tmsvrargs.xa_switch = &tmnull_switch;
 #if defined(_WIN32) || defined(_WIN64)
@@ -772,7 +736,88 @@ static void pyrun(py::object svr, std::vector<std::string> args,
   }
 }
 
+static PyObject *TuxedoException_code(PyObject *selfPtr, void *closure) {
+  try {
+    py::handle self(selfPtr);
+    py::tuple args = self.attr("args");
+    py::object code = args[1];
+    code.inc_ref();
+    return code.ptr();
+  } catch (py::error_already_set &e) {
+    py::none ret;
+    ret.inc_ref();
+    return ret.ptr();
+  }
+}
+
+static PyGetSetDef TuxedoException_getsetters[] = {
+    {const_cast<char *>("code"), TuxedoException_code, nullptr, nullptr,
+     nullptr},
+    {nullptr}};
+
+static PyObject *TuxedoException_tp_str(PyObject *selfPtr) {
+  py::str ret;
+  try {
+    py::handle self(selfPtr);
+    py::tuple args = self.attr("args");
+    ret = py::str(args[0]);
+  } catch (py::error_already_set &e) {
+    ret = "";
+  }
+
+  ret.inc_ref();
+  return ret.ptr();
+}
+
+static void register_exceptions(py::module &m) {
+  static PyObject *XatmiException =
+      PyErr_NewException("tuxedo.XatmiException", nullptr, nullptr);
+
+  if (XatmiException) {
+    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(XatmiException);
+    as_type->tp_str = TuxedoException_tp_str;
+    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
+    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
+    dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
+
+    Py_XINCREF(XatmiException);
+    m.add_object("XatmiException", py::handle(XatmiException));
+  }
+  static PyObject *Fml32Exception =
+      PyErr_NewException("tuxedo.Fml32Exception", nullptr, nullptr);
+  if (Fml32Exception) {
+    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(Fml32Exception);
+    as_type->tp_str = TuxedoException_tp_str;
+    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
+    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
+    dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
+
+    Py_XINCREF(Fml32Exception);
+    m.add_object("Fml32Exception", py::handle(Fml32Exception));
+  }
+
+  py::register_exception_translator([](std::exception_ptr p) {
+    try {
+      if (p) {
+        std::rethrow_exception(p);
+      }
+    } catch (const xatmi_exception &e) {
+      py::tuple args(2);
+      args[0] = e.what();
+      args[1] = e.code();
+      PyErr_SetObject(XatmiException, args.ptr());
+    } catch (const fml32_exception &e) {
+      py::tuple args(2);
+      args[0] = e.what();
+      args[1] = e.code();
+      PyErr_SetObject(Fml32Exception, args.ptr());
+    }
+  });
+}
+
 PYBIND11_MODULE(tuxedo, m) {
+  register_exceptions(m);
+
   // Poor man's namedtuple
   py::class_<pytpreply>(m, "TpReply")
       .def_readonly("rval", &pytpreply::rval)
@@ -840,50 +885,6 @@ PYBIND11_MODULE(tuxedo, m) {
       .def_readonly("failurequeue", &TPQCTL::failurequeue)
       .def_readonly("delivery_qos", &TPQCTL::delivery_qos)
       .def_readonly("reply_qos", &TPQCTL::reply_qos);
-
-  static PyObject *XatmiException =
-      PyErr_NewException("tuxedo.XatmiException", nullptr, nullptr);
-
-  if (XatmiException) {
-    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(XatmiException);
-    as_type->tp_str = TuxedoException_tp_str;
-    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
-    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
-    dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
-
-    Py_XINCREF(XatmiException);
-    m.add_object("XatmiException", py::handle(XatmiException));
-  }
-  static PyObject *Fml32Exception =
-      PyErr_NewException("tuxedo.Fml32Exception", nullptr, nullptr);
-  if (Fml32Exception) {
-    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(Fml32Exception);
-    as_type->tp_str = TuxedoException_tp_str;
-    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
-    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
-    dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
-
-    Py_XINCREF(Fml32Exception);
-    m.add_object("Fml32Exception", py::handle(Fml32Exception));
-  }
-
-  py::register_exception_translator([](std::exception_ptr p) {
-    try {
-      if (p) {
-        std::rethrow_exception(p);
-      }
-    } catch (const xatmi_exception &e) {
-      py::tuple args(2);
-      args[0] = e.what();
-      args[1] = e.code();
-      PyErr_SetObject(XatmiException, args.ptr());
-    } catch (const fml32_exception &e) {
-      py::tuple args(2);
-      args[0] = e.what();
-      args[1] = e.code();
-      PyErr_SetObject(Fml32Exception, args.ptr());
-    }
-  });
 
   m.def(
       "xaoSvcCtx",
@@ -1258,6 +1259,24 @@ PYBIND11_MODULE(tuxedo, m) {
 #ifdef TPENOSECONDARYRQ
   m.attr("TPENOSECONDARYRQ") = py::int_(TPENOSECONDARYRQ);
 #endif
+
+  m.attr("QMEINVAL") = py::int_(QMEINVAL);
+  m.attr("QMEBADRMID") = py::int_(QMEBADRMID);
+  m.attr("QMENOTOPEN") = py::int_(QMENOTOPEN);
+  m.attr("QMETRAN") = py::int_(QMETRAN);
+  m.attr("QMEBADMSGID") = py::int_(QMEBADMSGID);
+  m.attr("QMESYSTEM") = py::int_(QMESYSTEM);
+  m.attr("QMEOS") = py::int_(QMEOS);
+  m.attr("QMEABORTED") = py::int_(QMEABORTED);
+  m.attr("QMENOTA") = py::int_(QMENOTA);
+  m.attr("QMEPROTO") = py::int_(QMEPROTO);
+  m.attr("QMEBADQUEUE") = py::int_(QMEBADQUEUE);
+  m.attr("QMENOMSG") = py::int_(QMENOMSG);
+  m.attr("QMEINUSE") = py::int_(QMEINUSE);
+  m.attr("QMENOSPACE") = py::int_(QMENOSPACE);
+  m.attr("QMERELEASE") = py::int_(QMERELEASE);
+  m.attr("QMEINVHANDLE") = py::int_(QMEINVHANDLE);
+  m.attr("QMESHARE") = py::int_(QMESHARE);
 
   m.attr("FLD_SHORT") = py::int_(FLD_SHORT);
   m.attr("FLD_LONG") = py::int_(FLD_LONG);
