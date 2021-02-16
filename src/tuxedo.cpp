@@ -40,12 +40,59 @@ struct xatmi_exception : public std::exception {
   int code_;
   std::string message_;
 
+ protected:
+  xatmi_exception(int code, const std::string &message)
+      : code_(code), message_(message) {}
+
  public:
   explicit xatmi_exception(int code)
       : code_(code), message_(tpstrerror(code)) {}
 
   const char *what() const noexcept override { return message_.c_str(); }
   int code() const noexcept { return code_; }
+};
+
+struct qm_exception : public xatmi_exception {
+ public:
+  explicit qm_exception(int code) : xatmi_exception(code, qmstrerror(code)) {}
+
+  static const char *qmstrerror(int code) {
+    switch (code) {
+      case QMEINVAL:
+        return "An invalid flag value was specified.";
+      case QMEBADRMID:
+        return "An invalid resource manager identifier was specified.";
+      case QMENOTOPEN:
+        return "The resource manager is not currently open.";
+      case QMETRAN:
+        return "Transaction error.";
+      case QMEBADMSGID:
+        return "An invalid message identifier was specified.";
+      case QMESYSTEM:
+        return "A system error occurred. The exact nature of the error is "
+               "written to a log file.";
+      case QMEOS:
+        return "An operating system error occurred.";
+      case QMEABORTED:
+        return "The operation was aborted.";
+      case QMEPROTO:
+        return "An enqueue was done when the transaction state was not active.";
+      case QMEBADQUEUE:
+        return "An invalid or deleted queue name was specified.";
+      case QMENOSPACE:
+        return "Insufficient resources.";
+      case QMERELEASE:
+        return "Unsupported feature.";
+      case QMESHARE:
+        return "Queue is opened exclusively by another application.";
+      case QMENOMSG:
+        return "No message was available for dequeuing.";
+      case QMEINUSE:
+        return "Message is in use by another transaction.";
+      default:
+        return "?";
+    }
+  }
 };
 
 struct fml32_exception : public std::exception {
@@ -491,6 +538,9 @@ static TPQCTL pytpenqueue(const char *qspace, const char *qname, TPQCTL *ctl,
     int rc = tpenqueue(const_cast<char *>(qspace), const_cast<char *>(qname),
                        ctl, *in.pp, in.len, flags);
     if (rc == -1) {
+      if (tperrno == TPEDIAGNOSTIC) {
+        throw qm_exception(ctl->diagnostic);
+      }
       throw xatmi_exception(tperrno);
     }
   }
@@ -507,6 +557,9 @@ static std::pair<TPQCTL, py::object> pytpdequeue(const char *qspace,
     int rc = tpdequeue(const_cast<char *>(qspace), const_cast<char *>(qname),
                        ctl, out.pp, &out.len, flags);
     if (rc == -1) {
+      if (tperrno == TPEDIAGNOSTIC) {
+        throw qm_exception(ctl->diagnostic);
+      }
       throw xatmi_exception(tperrno);
     }
   }
@@ -772,7 +825,6 @@ static PyObject *TuxedoException_tp_str(PyObject *selfPtr) {
 static void register_exceptions(py::module &m) {
   static PyObject *XatmiException =
       PyErr_NewException("tuxedo.XatmiException", nullptr, nullptr);
-
   if (XatmiException) {
     PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(XatmiException);
     as_type->tp_str = TuxedoException_tp_str;
@@ -783,6 +835,20 @@ static void register_exceptions(py::module &m) {
     Py_XINCREF(XatmiException);
     m.add_object("XatmiException", py::handle(XatmiException));
   }
+
+  static PyObject *QmException =
+      PyErr_NewException("tuxedo.QmException", nullptr, nullptr);
+  if (QmException) {
+    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(QmException);
+    as_type->tp_str = TuxedoException_tp_str;
+    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
+    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
+    dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
+
+    Py_XINCREF(QmException);
+    m.add_object("QmException", py::handle(QmException));
+  }
+
   static PyObject *Fml32Exception =
       PyErr_NewException("tuxedo.Fml32Exception", nullptr, nullptr);
   if (Fml32Exception) {
@@ -801,6 +867,11 @@ static void register_exceptions(py::module &m) {
       if (p) {
         std::rethrow_exception(p);
       }
+    } catch (const qm_exception &e) {
+      py::tuple args(2);
+      args[0] = e.what();
+      args[1] = e.code();
+      PyErr_SetObject(QmException, args.ptr());
     } catch (const xatmi_exception &e) {
       py::tuple args(2);
       args[0] = e.what();
