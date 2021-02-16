@@ -5,7 +5,7 @@ import sys
 import setuptools
 
 __name__ = 'tuxedo'
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 class get_pybind_include(object):
     """Helper class to determine the pybind11 include path
