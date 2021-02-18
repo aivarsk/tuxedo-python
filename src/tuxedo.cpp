@@ -637,6 +637,12 @@ int tpsvrthrinit(int argc, char *argv[]) {
   if (!thread_context) {
     thread_context.reset(new context());
   }
+  // Create a new Python thread
+  // otherwise pybind11 creates and deletes one
+  // and messes up threading.local
+  auto const &internals = pybind11::detail::get_internals();
+  PyThreadState_New(internals.istate);
+
   if (tpopen() == -1) {
     userlog(const_cast<char *>("Failed tpopen() = %d / %s"), tperrno,
             tpstrerror(tperrno));
