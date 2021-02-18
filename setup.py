@@ -5,7 +5,7 @@ import sys
 import setuptools
 
 __name__ = 'tuxedo'
-__version__ = '1.0.3'
+__version__ = '1.0.4'
 
 class get_pybind_include(object):
     """Helper class to determine the pybind11 include path
@@ -24,6 +24,7 @@ ext_modules = [
     Extension(
         'tuxedo',
         ['src/tuxedo.cpp'],
+        define_macros=[('TUXEDO_WSC', 0)],
         include_dirs=[
             os.path.join(os.environ['TUXDIR'], 'include'),
             # Path to pybind11 headers
@@ -32,6 +33,20 @@ ext_modules = [
         ],
         library_dirs=[os.path.join(os.environ['TUXDIR'], 'lib')],
         libraries=['tux', 'fml32', 'tmib', 'engine'],
+        language='c++'
+    ),
+    Extension(
+        'tuxedowsc',
+        ['src/tuxedo.cpp'],
+        define_macros=[('TUXEDO_WSC', 1)],
+        include_dirs=[
+            os.path.join(os.environ['TUXDIR'], 'include'),
+            # Path to pybind11 headers
+            get_pybind_include(),
+            get_pybind_include(user=True),
+        ],
+        library_dirs=[os.path.join(os.environ['TUXDIR'], 'lib')],
+        libraries=['wsc', 'fml32', 'tmib', 'engine'],
         language='c++'
     ),
 ]

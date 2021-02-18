@@ -158,16 +158,6 @@ struct context {
   context &operator=(context &&) = delete;
 };
 
-struct svcresult {
-  int rval;
-  long rcode;
-  char *odata;
-  long olen;
-  char name[XATMI_SERVICE_NAME_LENGTH];
-  bool forward;
-  bool clean;
-};
-
 struct xatmibuf {
   xatmibuf() : pp(&p), len(0), p(nullptr) {}
   xatmibuf(TPSVCINFO *svcinfo)
@@ -249,7 +239,6 @@ struct pytpreply {
 
 static py::object server;
 static thread_local std::unique_ptr<context> thread_context;
-static thread_local svcresult tsvcresult;
 
 static void with_context() {
   if (!thread_context) {
@@ -445,30 +434,6 @@ static xatmibuf from_py(py::object obj) {
   }
 }
 
-static void pytpreturn(int rval, long rcode, py::object data, long flags) {
-  if (!tsvcresult.clean) {
-    throw std::runtime_error("tpreturn already called");
-  }
-  tsvcresult.clean = false;
-  tsvcresult.rval = rval;
-  tsvcresult.rcode = rcode;
-  auto &&odata = from_py(data);
-  tsvcresult.olen = odata.len;
-  tsvcresult.odata = odata.release();
-  tsvcresult.forward = false;
-}
-static void pytpforward(const std::string &svc, py::object data, long flags) {
-  if (!tsvcresult.clean) {
-    throw std::runtime_error("tpreturn already called");
-  }
-  tsvcresult.clean = false;
-  strncpy(tsvcresult.name, svc.c_str(), sizeof(tsvcresult.name));
-  auto &&odata = from_py(data);
-  tsvcresult.olen = odata.len;
-  tsvcresult.odata = odata.release();
-  tsvcresult.forward = true;
-}
-
 static py::object pytpexport(py::object idata, long flags) {
   auto in = from_py(idata);
   std::vector<char> ostr;
@@ -566,21 +531,6 @@ static std::pair<TPQCTL, py::object> pytpdequeue(const char *qspace,
   return std::make_pair(*ctl, to_py(std::move(out)));
 }
 
-static pytpreply pytpadmcall(py::object idata, long flags) {
-  auto in = from_py(idata);
-  xatmibuf out("FML32", 1024);
-  {
-    py::gil_scoped_release release;
-    int rc = tpadmcall(*in.fbfr(), out.fbfr(), flags);
-    if (rc == -1) {
-      if (tperrno != TPESVCFAIL) {
-        throw xatmi_exception(tperrno);
-      }
-    }
-  }
-  return pytpreply(tperrno, 0, to_py(std::move(out)));
-}
-
 static int pytpacall(const char *svc, py::object idata, long flags) {
   with_context();
   auto in = from_py(idata);
@@ -606,6 +556,63 @@ static pytpreply pytpgetrply(int cd, long flags) {
     }
   }
   return pytpreply(tperrno, tpurcode, to_py(std::move(out)), cd);
+}
+
+#if !TUXEDO_WSC
+#define MODULE "tuxedo"
+#else
+#define MODULE "tuxedowsc"
+#endif
+
+#if !TUXEDO_WSC
+struct svcresult {
+  int rval;
+  long rcode;
+  char *odata;
+  long olen;
+  char name[XATMI_SERVICE_NAME_LENGTH];
+  bool forward;
+  bool clean;
+};
+static thread_local svcresult tsvcresult;
+
+static void pytpreturn(int rval, long rcode, py::object data, long flags) {
+  if (!tsvcresult.clean) {
+    throw std::runtime_error("tpreturn already called");
+  }
+  tsvcresult.clean = false;
+  tsvcresult.rval = rval;
+  tsvcresult.rcode = rcode;
+  auto &&odata = from_py(data);
+  tsvcresult.olen = odata.len;
+  tsvcresult.odata = odata.release();
+  tsvcresult.forward = false;
+}
+static void pytpforward(const std::string &svc, py::object data, long flags) {
+  if (!tsvcresult.clean) {
+    throw std::runtime_error("tpreturn already called");
+  }
+  tsvcresult.clean = false;
+  strncpy(tsvcresult.name, svc.c_str(), sizeof(tsvcresult.name));
+  auto &&odata = from_py(data);
+  tsvcresult.olen = odata.len;
+  tsvcresult.odata = odata.release();
+  tsvcresult.forward = true;
+}
+
+static pytpreply pytpadmcall(py::object idata, long flags) {
+  auto in = from_py(idata);
+  xatmibuf out("FML32", 1024);
+  {
+    py::gil_scoped_release release;
+    int rc = tpadmcall(*in.fbfr(), out.fbfr(), flags);
+    if (rc == -1) {
+      if (tperrno != TPESVCFAIL) {
+        throw xatmi_exception(tperrno);
+      }
+    }
+  }
+  return pytpreply(tperrno, 0, to_py(std::move(out)));
 }
 
 int tpsvrinit(int argc, char *argv[]) {
@@ -794,6 +801,7 @@ static void pyrun(py::object svr, std::vector<std::string> args,
     throw;
   }
 }
+#endif
 
 static PyObject *TuxedoException_code(PyObject *selfPtr, void *closure) {
   try {
@@ -830,7 +838,7 @@ static PyObject *TuxedoException_tp_str(PyObject *selfPtr) {
 
 static void register_exceptions(py::module &m) {
   static PyObject *XatmiException =
-      PyErr_NewException("tuxedo.XatmiException", nullptr, nullptr);
+      PyErr_NewException(MODULE ".XatmiException", nullptr, nullptr);
   if (XatmiException) {
     PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(XatmiException);
     as_type->tp_str = TuxedoException_tp_str;
@@ -843,7 +851,7 @@ static void register_exceptions(py::module &m) {
   }
 
   static PyObject *QmException =
-      PyErr_NewException("tuxedo.QmException", nullptr, nullptr);
+      PyErr_NewException(MODULE ".QmException", nullptr, nullptr);
   if (QmException) {
     PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(QmException);
     as_type->tp_str = TuxedoException_tp_str;
@@ -856,7 +864,7 @@ static void register_exceptions(py::module &m) {
   }
 
   static PyObject *Fml32Exception =
-      PyErr_NewException("tuxedo.Fml32Exception", nullptr, nullptr);
+      PyErr_NewException(MODULE ".Fml32Exception", nullptr, nullptr);
   if (Fml32Exception) {
     PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(Fml32Exception);
     as_type->tp_str = TuxedoException_tp_str;
@@ -892,7 +900,11 @@ static void register_exceptions(py::module &m) {
   });
 }
 
+#if !TUXEDO_WSC
 PYBIND11_MODULE(tuxedo, m) {
+#else
+PYBIND11_MODULE(tuxedowsc, m) {
+#endif
   register_exceptions(m);
 
   // Poor man's namedtuple
@@ -964,17 +976,6 @@ PYBIND11_MODULE(tuxedo, m) {
       .def_readonly("reply_qos", &TPQCTL::reply_qos);
 
   m.def(
-      "xaoSvcCtx",
-      []() {
-        if (xao_svc_ctx_ptr == nullptr) {
-          throw std::runtime_error("xaoSvcCtx is null");
-        }
-        return reinterpret_cast<unsigned long long>(
-            (*xao_svc_ctx_ptr)(nullptr));
-      },
-      "Returns the OCI service handle for a given XA connection");
-
-  m.def(
       "tpinit",
       [](const char *usrname, const char *cltname, const char *passwd,
          const char *grpname, long flags) {
@@ -996,31 +997,6 @@ PYBIND11_MODULE(tuxedo, m) {
         }
       },
       "Leaves an application");
-
-  m.def(
-      "tpappthrinit",
-      [](const char *usrname, const char *cltname, const char *passwd,
-         const char *grpname, long flags) {
-        py::gil_scoped_release release;
-        thread_context.reset(new context(tpappthrinit, usrname, cltname, passwd,
-                                         grpname, flags));
-      },
-      "Routine for creating and initializing a new Tuxedo context in an "
-      "application-created server thread.",
-      py::arg("usrname") = nullptr, py::arg("cltname") = nullptr,
-      py::arg("passwd") = nullptr, py::arg("grpname") = nullptr,
-      py::arg("flags") = 0);
-
-  m.def(
-      "tpappthrterm",
-      []() {
-        py::gil_scoped_release release;
-        thread_context.reset();
-        if (tpappthrterm() == -1) {
-          throw xatmi_exception(tperrno);
-        }
-      },
-      "Routine for terminating Tuxedo User context in a server process");
 
   m.def(
       "tpbegin",
@@ -1102,6 +1078,7 @@ PYBIND11_MODULE(tuxedo, m) {
       "Writes a message to the Oracle Tuxedo ATMI system central event log",
       py::arg("message"));
 
+#if !TUXEDO_WSC
 #if defined(TPSINGLETON) && defined(TPSECONDARYRQ)
   m.def("tpadvertisex", &pytpadvertisex,
         "Routine for advertising a service with unique service name in a "
@@ -1116,6 +1093,54 @@ PYBIND11_MODULE(tuxedo, m) {
   m.def("run", &pyrun, "Run Tuxedo server", py::arg("server"), py::arg("args"),
         py::arg("rmname") = "NONE");
 
+  m.def("tpadmcall", &pytpadmcall, "Administers unbooted application",
+        py::arg("idata"), py::arg("flags") = 0);
+
+  m.def("tpreturn", &pytpreturn, "Routine for returning from a service routine",
+        py::arg("rval"), py::arg("rcode"), py::arg("data"),
+        py::arg("flags") = 0);
+  m.def("tpforward", &pytpforward,
+        "Routine for forwarding a service request to another service routine",
+        py::arg("svc"), py::arg("data"), py::arg("flags") = 0);
+
+  m.def(
+      "tpappthrinit",
+      [](const char *usrname, const char *cltname, const char *passwd,
+         const char *grpname, long flags) {
+        py::gil_scoped_release release;
+        thread_context.reset(new context(tpappthrinit, usrname, cltname, passwd,
+                                         grpname, flags));
+      },
+      "Routine for creating and initializing a new Tuxedo context in an "
+      "application-created server thread.",
+      py::arg("usrname") = nullptr, py::arg("cltname") = nullptr,
+      py::arg("passwd") = nullptr, py::arg("grpname") = nullptr,
+      py::arg("flags") = 0);
+
+  m.def(
+      "tpappthrterm",
+      []() {
+        py::gil_scoped_release release;
+        thread_context.reset();
+        if (tpappthrterm() == -1) {
+          throw xatmi_exception(tperrno);
+        }
+      },
+      "Routine for terminating Tuxedo User context in a server process");
+
+  m.def(
+      "xaoSvcCtx",
+      []() {
+        if (xao_svc_ctx_ptr == nullptr) {
+          throw std::runtime_error("xaoSvcCtx is null");
+        }
+        return reinterpret_cast<unsigned long long>(
+            (*xao_svc_ctx_ptr)(nullptr));
+      },
+      "Returns the OCI service handle for a given XA connection");
+
+#endif
+
   m.def("tpenqueue", &pytpenqueue, "Routine to enqueue a message.",
         py::arg("qspace"), py::arg("qname"), py::arg("ctl"), py::arg("data"),
         py::arg("flags") = 0);
@@ -1128,21 +1153,11 @@ PYBIND11_MODULE(tuxedo, m) {
         "Routine for sending service request and awaiting its reply",
         py::arg("svc"), py::arg("idata"), py::arg("flags") = 0);
 
-  m.def("tpadmcall", &pytpadmcall, "Administers unbooted application",
-        py::arg("idata"), py::arg("flags") = 0);
-
   m.def("tpacall", &pytpacall, "Routine for sending a service request",
         py::arg("svc"), py::arg("idata"), py::arg("flags") = 0);
   m.def("tpgetrply", &pytpgetrply,
         "Routine for getting a reply from a previous request", py::arg("cd"),
         py::arg("flags") = 0);
-
-  m.def("tpreturn", &pytpreturn, "Routine for returning from a service routine",
-        py::arg("rval"), py::arg("rcode"), py::arg("data"),
-        py::arg("flags") = 0);
-  m.def("tpforward", &pytpforward,
-        "Routine for forwarding a service request to another service routine",
-        py::arg("svc"), py::arg("data"), py::arg("flags") = 0);
 
   m.def("tpexport", &pytpexport,
         "Converts a typed message buffer into an exportable, "
