@@ -5,7 +5,7 @@ Tuxedo-Python
 .. image:: https://github.com/aivarsk/tuxedo-python/workflows/CI/badge.svg
     :target: https://github.com/aivarsk/tuxedo-python
 
-Python3 bindings for writing Oracle Tuxedo clients and servers. With Python2 support. With a book:
+Python3 bindings for writing Oracle Tuxedo clients and servers. With Python2 support. With a book Modernizing Oracle Tuxedo Applications with Python:
 
 .. image:: https://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&MarketPlace=US&ASIN=180107058X&ServiceVersion=20070822&ID=AsinImage&WS=1&Format=_SL160_&tag=aivarsk-20
     :target: https://amzn.to/3ljktiH
