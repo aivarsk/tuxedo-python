@@ -128,6 +128,7 @@ setup(
     ext_modules=ext_modules,
     setup_requires=['pybind11>=2.4'],
     cmdclass={'build_ext': BuildExt},
+    license='MIT',
     classifiers=[
         'Programming Language :: Python :: 3',
         'Programming Language :: C++',
