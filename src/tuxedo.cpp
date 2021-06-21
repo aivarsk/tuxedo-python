@@ -1228,6 +1228,23 @@ PYBIND11_MODULE(tuxedowsc, m) {
       "Maps field name to field identifier", py::arg("name"));
 
   m.def(
+      "Fboolpr32",
+      [](const char *expression, py::object iop) {
+        std::unique_ptr<char, decltype(&free)> guard(
+            Fboolco32(const_cast<char *>(expression)), &free);
+        if (guard.get() == nullptr) {
+          throw fml32_exception(Ferror32);
+        }
+
+        int fd = iop.attr("fileno")().cast<py::int_>();
+        std::unique_ptr<FILE, decltype(&fclose)> fiop(fdopen(dup(fd), "w"),
+                                                      &fclose);
+        Fboolpr32(guard.get(), fiop.get());
+      },
+      "Print Boolean expression as parsed", py::arg("expression"),
+      py::arg("iop"));
+
+  m.def(
       "Fboolev32",
       [](py::object fbfr, const char *expression) {
         std::unique_ptr<char, decltype(&free)> guard(
