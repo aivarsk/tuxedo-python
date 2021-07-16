@@ -682,8 +682,11 @@ void PY(TPSVCINFO *svcinfo) {
     auto idata = to_py(xatmibuf(svcinfo));
 
     auto &&func = server.attr(svcinfo->name);
-    auto &&argspec = py::module::import("inspect").attr("getargspec")(func);
-    auto &&args = argspec.attr("args");
+    long argcount = (func.attr("__code__").attr("co_argcount") +
+                     func.attr("__code__").attr("co_kwonlyargcount"))
+                        .cast<py::int_>();
+    auto &&args =
+        func.attr("__code__").attr("co_varnames")[py::slice(0, argcount, 1)];
     py::dict kwargs;
     if (args.contains(py::str("name"))) {
       kwargs[py::str("name")] = py::str(svcinfo->name);
