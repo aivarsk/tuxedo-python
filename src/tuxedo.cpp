@@ -298,7 +298,7 @@ static py::object to_py(FBFR32 *fbfr, FLDLEN32 buflen = 0) {
       case FLD_STRING:
         val.append(
 #if PY_MAJOR_VERSION >= 3
-            py::str(PyUnicode_DecodeLocale(value.get(), "surrogateescape"))
+            py::reinterpret_steal<py::str>(PyUnicode_DecodeLocale(value.get(), "surrogateescape"))
 #else
             py::bytes(value.get(), len - 1)
 #endif
