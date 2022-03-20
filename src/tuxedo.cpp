@@ -571,33 +571,34 @@ struct svcresult {
   char *odata;
   long olen;
   char name[XATMI_SERVICE_NAME_LENGTH];
-  bool forward;
-  bool clean;
+  enum state_t { NONE, FORWARD, RETURN };
+  state_t state;
+  void reset() { state = NONE; }
+  svcresult &with_state(state_t newstate) {
+    if (state != NONE) {
+      throw std::runtime_error("tpreturn already called");
+    }
+    state = newstate;
+    return *this;
+  }
+  svcresult &with_data(py::object data) {
+    auto &&tdata = from_py(data);
+    olen = tdata.len;
+    odata = tdata.release();
+    return *this;
+  }
 };
 static thread_local svcresult tsvcresult;
 
 static void pytpreturn(int rval, long rcode, py::object data, long flags) {
-  if (!tsvcresult.clean) {
-    throw std::runtime_error("tpreturn already called");
-  }
-  tsvcresult.clean = false;
+  tsvcresult.with_state(svcresult::RETURN).with_data(data);
   tsvcresult.rval = rval;
   tsvcresult.rcode = rcode;
-  auto &&odata = from_py(data);
-  tsvcresult.olen = odata.len;
-  tsvcresult.odata = odata.release();
-  tsvcresult.forward = false;
 }
+
 static void pytpforward(const std::string &svc, py::object data, long flags) {
-  if (!tsvcresult.clean) {
-    throw std::runtime_error("tpreturn already called");
-  }
-  tsvcresult.clean = false;
+  tsvcresult.with_state(svcresult::FORWARD).with_data(data);
   strncpy(tsvcresult.name, svc.c_str(), sizeof(tsvcresult.name));
-  auto &&odata = from_py(data);
-  tsvcresult.olen = odata.len;
-  tsvcresult.odata = odata.release();
-  tsvcresult.forward = true;
 }
 
 static pytpreply pytpadmcall(py::object idata, long flags) {
@@ -675,7 +676,7 @@ void PY(TPSVCINFO *svcinfo) {
   if (!thread_context) {
     thread_context.reset(new context());
   }
-  tsvcresult.clean = true;
+  tsvcresult.reset();
 
   try {
     py::gil_scoped_acquire acquire;
@@ -706,7 +707,7 @@ void PY(TPSVCINFO *svcinfo) {
 
     func(idata, **kwargs);
 
-    if (tsvcresult.clean) {
+    if (tsvcresult.state == svcresult::NONE) {
       userlog(const_cast<char *>("tpreturn() not called"));
       tpreturn(TPEXIT, 0, nullptr, 0, 0);
     }
@@ -715,7 +716,7 @@ void PY(TPSVCINFO *svcinfo) {
     tpreturn(TPEXIT, 0, nullptr, 0, 0);
   }
 
-  if (tsvcresult.forward) {
+  if (tsvcresult.state == svcresult::FORWARD) {
     tpforward(tsvcresult.name, tsvcresult.odata, tsvcresult.olen, 0);
   } else {
     tpreturn(tsvcresult.rval, tsvcresult.rcode, tsvcresult.odata,
