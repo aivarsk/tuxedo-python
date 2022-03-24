@@ -298,7 +298,8 @@ static py::object to_py(FBFR32 *fbfr, FLDLEN32 buflen = 0) {
       case FLD_STRING:
         val.append(
 #if PY_MAJOR_VERSION >= 3
-            py::reinterpret_steal<py::str>(PyUnicode_DecodeLocale(value.get(), "surrogateescape"))
+            py::reinterpret_steal<py::str>(
+                PyUnicode_DecodeLocale(value.get(), "surrogateescape"))
 #else
             py::bytes(value.get(), len - 1)
 #endif
@@ -839,45 +840,29 @@ static PyObject *TuxedoException_tp_str(PyObject *selfPtr) {
   return ret.ptr();
 }
 
+static PyObject *make_exception(PyObject *obj) {
+  PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(obj);
+  as_type->tp_str = TuxedoException_tp_str;
+  PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
+  auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
+  dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
+
+  Py_XINCREF(obj);
+  return obj;
+}
+
 static void register_exceptions(py::module &m) {
-  static PyObject *XatmiException =
+  static auto *XatmiException =
       PyErr_NewException(MODULE ".XatmiException", nullptr, nullptr);
-  if (XatmiException) {
-    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(XatmiException);
-    as_type->tp_str = TuxedoException_tp_str;
-    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
-    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
-    dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
+  m.add_object("XatmiException", py::handle(make_exception(XatmiException)));
 
-    Py_XINCREF(XatmiException);
-    m.add_object("XatmiException", py::handle(XatmiException));
-  }
-
-  static PyObject *QmException =
+  static auto *QmException =
       PyErr_NewException(MODULE ".QmException", nullptr, nullptr);
-  if (QmException) {
-    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(QmException);
-    as_type->tp_str = TuxedoException_tp_str;
-    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
-    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
-    dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
+  m.add_object("QmException", py::handle(make_exception(QmException)));
 
-    Py_XINCREF(QmException);
-    m.add_object("QmException", py::handle(QmException));
-  }
-
-  static PyObject *Fml32Exception =
+  static auto *Fml32Exception =
       PyErr_NewException(MODULE ".Fml32Exception", nullptr, nullptr);
-  if (Fml32Exception) {
-    PyTypeObject *as_type = reinterpret_cast<PyTypeObject *>(Fml32Exception);
-    as_type->tp_str = TuxedoException_tp_str;
-    PyObject *descr = PyDescr_NewGetSet(as_type, TuxedoException_getsetters);
-    auto dict = py::reinterpret_borrow<py::dict>(as_type->tp_dict);
-    dict[py::handle(((PyDescrObject *)(descr))->d_name)] = py::handle(descr);
-
-    Py_XINCREF(Fml32Exception);
-    m.add_object("Fml32Exception", py::handle(Fml32Exception));
-  }
+  m.add_object("Fml32Exception", py::handle(make_exception(Fml32Exception)));
 
   py::register_exception_translator([](std::exception_ptr p) {
     try {
