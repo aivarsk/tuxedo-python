@@ -232,9 +232,6 @@ struct pytpreply {
   long rcode;
   py::object data;
   int cd;
-
-  pytpreply(int rval, long rcode, py::object data, int cd = -1)
-      : rval(rval), rcode(rcode), data(data), cd(cd) {}
 };
 
 static py::object server;
@@ -492,7 +489,7 @@ static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
       }
     }
   }
-  return pytpreply(tperrno, tpurcode, to_py(std::move(out)));
+  return pytpreply{tperrno, tpurcode, to_py(std::move(out))};
 }
 
 static TPQCTL pytpenqueue(const char *qspace, const char *qname, TPQCTL *ctl,
@@ -556,7 +553,7 @@ static pytpreply pytpgetrply(int cd, long flags) {
       }
     }
   }
-  return pytpreply(tperrno, tpurcode, to_py(std::move(out)), cd);
+  return pytpreply{tperrno, tpurcode, to_py(std::move(out)), cd};
 }
 
 #if !TUXEDO_WSC
@@ -614,7 +611,7 @@ static pytpreply pytpadmcall(py::object idata, long flags) {
       }
     }
   }
-  return pytpreply(tperrno, 0, to_py(std::move(out)));
+  return pytpreply{tperrno, 0, to_py(std::move(out))};
 }
 
 int tpsvrinit(int argc, char *argv[]) {
