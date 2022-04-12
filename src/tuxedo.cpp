@@ -870,20 +870,11 @@ static void register_exceptions(py::module &m) {
         std::rethrow_exception(p);
       }
     } catch (const qm_exception &e) {
-      py::tuple args(2);
-      args[0] = e.what();
-      args[1] = e.code();
-      PyErr_SetObject(QmException, args.ptr());
+      PyErr_SetObject(QmException, py::make_tuple(e.what(), e.code()).ptr());
     } catch (const xatmi_exception &e) {
-      py::tuple args(2);
-      args[0] = e.what();
-      args[1] = e.code();
-      PyErr_SetObject(XatmiException, args.ptr());
+      PyErr_SetObject(XatmiException, py::make_tuple(e.what(), e.code()).ptr());
     } catch (const fml32_exception &e) {
-      py::tuple args(2);
-      args[0] = e.what();
-      args[1] = e.code();
-      PyErr_SetObject(Fml32Exception, args.ptr());
+      PyErr_SetObject(Fml32Exception, py::make_tuple(e.what(), e.code()).ptr());
     }
   });
 }
