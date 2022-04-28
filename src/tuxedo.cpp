@@ -227,13 +227,6 @@ struct xatmibuf {
   }
 };
 
-struct pytpreply {
-  int rval;
-  long rcode;
-  py::object data;
-  int cd;
-};
-
 static py::object server;
 static thread_local std::unique_ptr<context> thread_context;
 
@@ -316,7 +309,7 @@ static py::object to_py(FBFR32 *fbfr, FLDLEN32 buflen = 0) {
   return result;
 }
 
-static py::object to_py(xatmibuf buf) {
+static py::object to_py(xatmibuf &buf) {
   char type[8];
   char subtype[16];
   if (tptypes(*buf.pp, type, subtype) == -1) {
@@ -332,6 +325,18 @@ static py::object to_py(xatmibuf buf) {
     throw std::invalid_argument("Unsupported buffer type");
   }
 }
+
+struct pytpreply {
+  int rval;
+  long rcode;
+  py::object data;
+  int cd;
+
+  pytpreply(int rval_, long rcode_, xatmibuf &out_, int cd_ = -1)
+      : rval(rval_), rcode(rcode_), cd(cd_) {
+    data = to_py(out_);
+  }
+};
 
 static void from_py(py::dict obj, xatmibuf &b);
 static void from_py1(xatmibuf &buf, FLDID32 fieldid, FLDOCC32 oc,
@@ -459,7 +464,7 @@ static py::object pytpimport(const std::string istr, long flags) {
     throw xatmi_exception(tperrno);
   }
 
-  return to_py(std::move(obuf));
+  return to_py(obuf);
 }
 
 static void pytppost(const std::string eventname, py::object data, long flags) {
@@ -479,21 +484,17 @@ static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
   with_context();
   auto in = from_py(idata);
   xatmibuf out("FML32", 1024);
-  int got_tperrno;
-  int got_tpurcode;
   {
     py::gil_scoped_release release;
     int rc = tpcall(const_cast<char *>(svc), *in.pp, in.len, out.pp, &out.len,
                     flags);
-    got_tperrno = tperrno;
-    got_tpurcode = tpurcode;
     if (rc == -1) {
-      if (got_tperrno != TPESVCFAIL) {
-        throw xatmi_exception(got_tperrno);
+      if (tperrno != TPESVCFAIL) {
+        throw xatmi_exception(tperrno);
       }
     }
   }
-  return pytpreply{got_tperrno, got_tpurcode, to_py(std::move(out))};
+  return pytpreply(tperrno, tpurcode, out);
 }
 
 static TPQCTL pytpenqueue(const char *qspace, const char *qname, TPQCTL *ctl,
@@ -530,7 +531,7 @@ static std::pair<TPQCTL, py::object> pytpdequeue(const char *qspace,
       throw xatmi_exception(tperrno);
     }
   }
-  return std::make_pair(*ctl, to_py(std::move(out)));
+  return std::make_pair(*ctl, to_py(out));
 }
 
 static int pytpacall(const char *svc, py::object idata, long flags) {
@@ -548,20 +549,16 @@ static int pytpacall(const char *svc, py::object idata, long flags) {
 static pytpreply pytpgetrply(int cd, long flags) {
   with_context();
   xatmibuf out("FML32", 1024);
-  int got_tperrno;
-  int got_tpurcode;
   {
     py::gil_scoped_release release;
     int rc = tpgetrply(&cd, out.pp, &out.len, flags);
-    got_tperrno = tperrno;
-    got_tpurcode = tpurcode;
     if (rc == -1) {
-      if (got_tperrno != TPESVCFAIL) {
-        throw xatmi_exception(got_tperrno);
+      if (tperrno != TPESVCFAIL) {
+        throw xatmi_exception(tperrno);
       }
     }
   }
-  return pytpreply{got_tperrno, got_tpurcode, to_py(std::move(out)), cd};
+  return pytpreply(tperrno, tpurcode, out, cd);
 }
 
 #if !TUXEDO_WSC
@@ -610,20 +607,16 @@ static void pytpforward(const std::string &svc, py::object data, long flags) {
 static pytpreply pytpadmcall(py::object idata, long flags) {
   auto in = from_py(idata);
   xatmibuf out("FML32", 1024);
-  int got_tperrno;
-  int got_tpurcode;
   {
     py::gil_scoped_release release;
     int rc = tpadmcall(*in.fbfr(), out.fbfr(), flags);
-    got_tperrno = tperrno;
-    got_tpurcode = tpurcode;
     if (rc == -1) {
-      if (got_tperrno != TPESVCFAIL) {
-        throw xatmi_exception(got_tperrno);
+      if (tperrno != TPESVCFAIL) {
+        throw xatmi_exception(tperrno);
       }
     }
   }
-  return pytpreply{got_tperrno, got_tpurcode, to_py(std::move(out))};
+  return pytpreply(tperrno, tpurcode, out);
 }
 
 int tpsvrinit(int argc, char *argv[]) {
@@ -690,7 +683,8 @@ void PY(TPSVCINFO *svcinfo) {
 
   try {
     py::gil_scoped_acquire acquire;
-    auto idata = to_py(xatmibuf(svcinfo));
+    auto in = xatmibuf(svcinfo);
+    auto idata = to_py(in);
 
     auto &&func = server.attr(svcinfo->name);
     auto &&code = func.attr("__code__");
@@ -1292,7 +1286,7 @@ PYBIND11_MODULE(tuxedowsc, m) {
                                                       &fclose);
 
         obuf.mutate([&](FBFR32 *fbfr) { return Fextread32(fbfr, fiop.get()); });
-        return to_py(std::move(obuf));
+        return to_py(obuf);
       },
       "Builds fielded buffer from printed format", py::arg("iop"));
 
