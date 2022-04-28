@@ -479,17 +479,21 @@ static pytpreply pytpcall(const char *svc, py::object idata, long flags) {
   with_context();
   auto in = from_py(idata);
   xatmibuf out("FML32", 1024);
+  int got_tperrno;
+  int got_tpurcode;
   {
     py::gil_scoped_release release;
     int rc = tpcall(const_cast<char *>(svc), *in.pp, in.len, out.pp, &out.len,
                     flags);
+    got_tperrno = tperrno;
+    got_tpurcode = tpurcode;
     if (rc == -1) {
-      if (tperrno != TPESVCFAIL) {
-        throw xatmi_exception(tperrno);
+      if (got_tperrno != TPESVCFAIL) {
+        throw xatmi_exception(got_tperrno);
       }
     }
   }
-  return pytpreply{tperrno, tpurcode, to_py(std::move(out))};
+  return pytpreply{got_tperrno, got_tpurcode, to_py(std::move(out))};
 }
 
 static TPQCTL pytpenqueue(const char *qspace, const char *qname, TPQCTL *ctl,
@@ -544,16 +548,20 @@ static int pytpacall(const char *svc, py::object idata, long flags) {
 static pytpreply pytpgetrply(int cd, long flags) {
   with_context();
   xatmibuf out("FML32", 1024);
+  int got_tperrno;
+  int got_tpurcode;
   {
     py::gil_scoped_release release;
     int rc = tpgetrply(&cd, out.pp, &out.len, flags);
+    got_tperrno = tperrno;
+    got_tpurcode = tpurcode;
     if (rc == -1) {
-      if (tperrno != TPESVCFAIL) {
-        throw xatmi_exception(tperrno);
+      if (got_tperrno != TPESVCFAIL) {
+        throw xatmi_exception(got_tperrno);
       }
     }
   }
-  return pytpreply{tperrno, tpurcode, to_py(std::move(out)), cd};
+  return pytpreply{got_tperrno, got_tpurcode, to_py(std::move(out)), cd};
 }
 
 #if !TUXEDO_WSC
@@ -602,16 +610,20 @@ static void pytpforward(const std::string &svc, py::object data, long flags) {
 static pytpreply pytpadmcall(py::object idata, long flags) {
   auto in = from_py(idata);
   xatmibuf out("FML32", 1024);
+  int got_tperrno;
+  int got_tpurcode;
   {
     py::gil_scoped_release release;
     int rc = tpadmcall(*in.fbfr(), out.fbfr(), flags);
+    got_tperrno = tperrno;
+    got_tpurcode = tpurcode;
     if (rc == -1) {
-      if (tperrno != TPESVCFAIL) {
-        throw xatmi_exception(tperrno);
+      if (got_tperrno != TPESVCFAIL) {
+        throw xatmi_exception(got_tperrno);
       }
     }
   }
-  return pytpreply{tperrno, 0, to_py(std::move(out))};
+  return pytpreply{got_tperrno, got_tpurcode, to_py(std::move(out))};
 }
 
 int tpsvrinit(int argc, char *argv[]) {
