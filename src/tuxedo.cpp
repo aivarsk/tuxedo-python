@@ -688,8 +688,11 @@ void PY(TPSVCINFO *svcinfo) {
 
     auto &&func = server.attr(svcinfo->name);
     auto &&code = func.attr("__code__");
-    long argcount = (code.attr("co_argcount") + code.attr("co_kwonlyargcount"))
-                        .cast<py::int_>();
+    long argcount = (code.attr("co_argcount")
+#if PY_MAJOR_VERSION >= 3
+                        + code.attr("co_kwonlyargcount")
+#endif
+			).cast<py::int_>();
     auto &&args = code.attr("co_varnames")[py::slice(0, argcount, 1)];
     py::dict kwargs;
     if (args.contains(py::str("name"))) {
