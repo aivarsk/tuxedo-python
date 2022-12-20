@@ -916,7 +916,11 @@ PYBIND11_MODULE(tuxedowsc, m) {
                        long urcode, long delivery_qos, long reply_qos,
                        const char *msgid, const char *corrid,
                        const char *replyqueue, const char *failurequeue) {
+#if __cplusplus > 201103L
              auto p = std::make_unique<TPQCTL>();
+#else
+             auto p = std::unique_ptr<TPQCTL>(new TPQCTL);
+#endif
              memset(p.get(), 0, sizeof(TPQCTL));
              p->flags = flags;
              p->deq_time = deq_time;
