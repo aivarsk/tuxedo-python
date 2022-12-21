@@ -17,7 +17,7 @@ jobs:
         run: sudo pip3 install pybind11
       - name: Install Oracle Tuxedo
         env:
-          credentials: ${{ secrets.HOST }}
+          HOST: ${{ secrets.HOST }}
         run: |
           (cd && wget -q http://$HOST/files/tuxedo122200_64_Linux_01_x86.zip)
           (cd && wget -q http://$HOST/files/tuxedo122.rsp)
