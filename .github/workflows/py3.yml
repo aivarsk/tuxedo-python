@@ -1,4 +1,4 @@
-name: CI
+name: CI for Python3
 on:
   push:
     branches: [ master ]
