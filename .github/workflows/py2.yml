@@ -30,4 +30,4 @@ jobs:
       - name: Install tuxedo module
         run: source /home/runner/Oracle/tuxedo12.2.2.0.0/tux.env && sudo -E python setup.py install
       - name: Run demo code
-        run: source /home/runner/Oracle/tuxedo12.2.2.0.0/tux.env && cd demo && make
+        run: source /home/runner/Oracle/tuxedo12.2.2.0.0/tux.env && cd demo && make py2
