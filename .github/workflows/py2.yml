@@ -1,0 +1,33 @@
+name: CI
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Install dependencies
+        run: sudo apt update && sudo apt-get install gcc-8 python-pip python-setuptools openjdk-8-jdk
+      - uses: actions/checkout@v2
+      - name: Install pybind11
+        run: sudo pip3 install pybind11
+      - name: Install Oracle Tuxedo
+        run: |
+          (cd && wget -q http://104.245.35.234/files/tuxedo122200_64_Linux_01_x86.zip)
+          (cd && wget -q http://104.245.35.234/files/tuxedo122.rsp)
+          (cd && unzip tuxedo122200_64_Linux_01_x86.zip)
+          (cd ~/Disk1/install && JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 ./runInstaller.sh -silent -responseFile ~/tuxedo122.rsp -ignoreSysPrereqs -waitforcompletion)
+      - name: Build tuxedo module as C++11
+        run: source /home/runner/Oracle/tuxedo12.2.2.0.0/tux.env && TESTCPP11=true python setup.py build
+      - name: Clean
+        run: source /home/runner/Oracle/tuxedo12.2.2.0.0/tux.env && python setup.py clean
+      - name: Build tuxedo module
+        run: source /home/runner/Oracle/tuxedo12.2.2.0.0/tux.env && python setup.py build
+      - name: Install tuxedo module
+        run: source /home/runner/Oracle/tuxedo12.2.2.0.0/tux.env && sudo -E python setup.py install
+      - name: Run demo code
+        run: source /home/runner/Oracle/tuxedo12.2.2.0.0/tux.env && cd demo && make
