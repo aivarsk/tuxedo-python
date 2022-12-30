@@ -343,7 +343,6 @@ static void from_py1(xatmibuf &buf, FLDID32 fieldid, FLDOCC32 oc,
                      py::handle obj, xatmibuf &b) {
   if (obj.is_none()) {
     // pass
-#if PY_MAJOR_VERSION >= 3
   } else if (py::isinstance<py::bytes>(obj)) {
     std::string val(PyBytes_AsString(obj.ptr()), PyBytes_Size(obj.ptr()));
 
@@ -351,7 +350,6 @@ static void from_py1(xatmibuf &buf, FLDID32 fieldid, FLDOCC32 oc,
       return CFchg32(fbfr, fieldid, oc, const_cast<char *>(val.data()),
                      val.size(), FLD_CARRAY);
     });
-#endif
   } else if (py::isinstance<py::str>(obj)) {
 #if PY_MAJOR_VERSION >= 3
     py::bytes b = py::reinterpret_steal<py::bytes>(
