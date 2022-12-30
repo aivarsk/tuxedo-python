@@ -16,15 +16,6 @@ default: tuxconfig
 	./client.py
 	tmshutdown -y
 
-py2: tuxconfig
-	sed -i 's/python3/python/g' *py
-	./buf.py < in.ud
-	tmboot -y
-	curl -X POST --data '{"USD": "5"}' localhost:8000
-	@echo
-	./client.py
-	tmshutdown -y
-
 buf:
 	./buf.py < in.ud
 
