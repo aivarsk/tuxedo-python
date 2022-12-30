@@ -3,8 +3,8 @@
 
 import os
 import sys
-import http.server
-import socketserver
+import SimpleHTTPServer
+import SocketServer
 import json
 import threading
 
@@ -12,7 +12,7 @@ import tuxedo as t
 
 PORT = 8000
 
-class Handler(http.server.BaseHTTPRequestHandler):
+class Handler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def do_POST(self):
         content = self.rfile.read(int(self.headers.get('Content-Length', '0')))
         if content:
@@ -37,15 +37,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return 'no request'
 
 def serve():
-    socketserver.ThreadingTCPServer.allow_reuse_address = True
-    with socketserver.ThreadingTCPServer(("", PORT), Handler) as httpd:
-        t.userlog('serving at port ' + str(PORT))
-        httpd.serve_forever()
+    SocketServer.ThreadingTCPServer.allow_reuse_address = True
+    httpd = SocketServer.ThreadingTCPServer(("", PORT), Handler)
+    t.userlog('serving at port ' + str(PORT))
+    httpd.serve_forever()
 
 class Server:
     def tpsvrinit(self, args):
         t.userlog('Server startup')
-        threading.Thread(target=serve, daemon=True).start()
+        thread = threading.Thread(target=serve)
+        thread.daemon = True
+        thread.start()
         return 0
 
     def tpsvrdone(self):

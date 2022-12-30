@@ -4,7 +4,7 @@
 
 import os
 import sys
-import urllib.request
+import urllib2
 from xml.etree import ElementTree as et
 
 import tuxedo as t
@@ -24,7 +24,7 @@ class Server:
     def GETRATE(self, args):
         if self._rates is None:
             t.userlog('Loading rates')
-            f = urllib.request.urlopen('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml')
+            f = urllib2.urlopen('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml')
             x = et.fromstring(f.read().decode('utf8'))
             self._rates = {}
             for r in x.findall('.//*[@currency]'):
