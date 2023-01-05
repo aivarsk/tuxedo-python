@@ -4,11 +4,11 @@ endif
 
 export PATH:=$(TUXDIR)/bin:$(PATH)
 export LD_LIBRARY_PATH:=$(TUXDIR)/lib:$(LD_LIBRARY_PATH)
-export TUXCONFIG:=$(CURDIR)/tuxconfig
+export TUXCONFIG:=$(CURDIR)/t
 export FLDTBLDIR32=$(TUXDIR)/udataobj:$(CURDIR)
 export FIELDTBLS32=tpadm,demo
 
-default: tuxconfig
+default: t
 	tmunloadcf
 	./buf.py < in.ud
 	tmboot -y
@@ -26,9 +26,9 @@ ubbconfig: ubbconfig.in
           | sed s:@UNAME@:`uname -n`:g \
           | sed s:@CURDIR@:$(CURDIR):g > $@
 
-tuxconfig: ubbconfig
+t: ubbconfig
 	tmloadcf -y $<
 
 clean:
 	-tmipcrm -y
-	-rm -rf *.o ubbconfig tuxconfig ULOG.* access.* stdout stderr .adm
+	-rm -rf *.o ubbconfig t ULOG.* access.* stdout stderr .adm
