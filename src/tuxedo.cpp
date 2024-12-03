@@ -798,7 +798,7 @@ static void pyrun(py::object svr, std::vector<std::string> args,
   try {
     py::gil_scoped_release release;
     _tmbuilt_with_thread_option = 1;
-    std::vector<char *> argv(args.size());
+    std::vector<char *> argv(args.size() + 1); // add terminating NULL
     for (size_t i = 0; i < args.size(); i++) {
       argv[i] = const_cast<char *>(args[i].c_str());
     }
