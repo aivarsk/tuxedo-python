@@ -9,7 +9,7 @@ Python bindings for writing Oracle Tuxedo clients and servers in Python 3.
 There is a book, `Modernizing Oracle Tuxedo Applications with Python
 <https://amzn.to/3ljktiH>`_:
 
-.. image:: https://aivarsk.com/book-cover.jpg
+.. image:: https://aivarsk.com/public/book-cover.jpg
     :target: https://amzn.to/3ljktiH
     :alt: Modernizing Oracle Tuxedo Applications with Python by Aivars Kalvans
 
