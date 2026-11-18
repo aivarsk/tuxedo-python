@@ -297,6 +297,25 @@ Demo
 - ``db.py`` Access Oracle Database using cx_Oracle module within global transaction
 - ``buf.py`` Demo of tpimport/tpexport and FML32 identifiers
 
+CI against Oracle Tuxedo
+------------------------
+
+Pull requests run three CI jobs: the module against Fuxedo across a
+Python version matrix, plus Oracle Tuxedo 12.2.2 and 22.1. Oracle's
+installer requires an Oracle account and accepts a license, so CI cannot
+download it; instead, pre-installed Tuxedo trees (packed with ``tar czf``
+from a licensed installation, relocatable via ``TUXDIR``) are published
+as assets of the PRIVATE repository ``aivarsk/tuxedo-installers``, and a
+read-only token secret named ``INSTALLERS_TOKEN`` lets the workflow
+fetch them. Keeping the assets private matters: the Oracle license does
+not allow redistributing the software publicly.
+
+To set this up on a fork: pack ``tuxedo<version>`` from a licensed
+installation, attach the tarball to a release named ``oracle-tuxedo`` in
+your private installers repo, and create a fine-grained personal access
+token with contents read access to that repo as the
+``INSTALLERS_TOKEN`` secret.
+
 Troubleshooting
 ---------------
 

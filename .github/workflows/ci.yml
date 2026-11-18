@@ -65,3 +65,58 @@ jobs:
           export FLDTBLDIR32="$TUXDIR/udataobj:$PWD/demo/py3"
           export FIELDTBLS32=tpadm,demo
           python3 demo/py3/buf.py < demo/py3/in.ud
+
+  oracle:
+    # Real Oracle Tuxedo, from prebuilt installation trees hosted as
+    # PRIVATE release assets (the installer needs an Oracle account, so
+    # CI cannot fetch it; see README "CI against Oracle Tuxedo").
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "12.2.2"
+            asset: tuxedo-12.2.2-prebuilt.tar.gz
+            needs-nsl: ""
+          - name: "22.1"
+            asset: tuxedo-22.1-prebuilt.tar.gz
+            needs-nsl: "yes"
+    name: Oracle Tuxedo ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install build dependencies
+        run: pip install pybind11 setuptools
+
+      - name: Install libnsl2 (22.1 runtime dependency)
+        if: matrix.needs-nsl != ''
+        run: sudo apt-get update && sudo apt-get install -y libnsl2
+
+      - name: Fetch the prebuilt Oracle Tuxedo tree
+        env:
+          GH_TOKEN: ${{ secrets.INSTALLERS_TOKEN }}
+        run: |
+          gh release download oracle-tuxedo \
+            --repo aivarsk/tuxedo-installers \
+            --pattern "${{ matrix.asset }}" --clobber --dir /tmp
+          mkdir -p "$HOME/oracle"
+          tar xzf "/tmp/${{ matrix.asset }}" -C "$HOME/oracle"
+          TUXDIR=$(echo "$HOME"/oracle/tuxedo*)
+          echo "TUXDIR=$TUXDIR" >> "$GITHUB_ENV"
+
+      - name: Build the tuxedo module
+        run: python3 setup.py build
+
+      - name: Run demo/py3 end to end
+        run: |
+          export PATH="$TUXDIR/bin:$PATH"
+          export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
+          export PYTHONPATH="$(echo "$PWD"/build/lib.*):$PWD/demo/py3"
+          cd demo/py3
+          make default
+        timeout-minutes: 15

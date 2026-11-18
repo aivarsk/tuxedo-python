@@ -6,7 +6,12 @@ export PATH:=$(TUXDIR)/bin:$(PATH)
 export LD_LIBRARY_PATH:=$(TUXDIR)/lib:$(LD_LIBRARY_PATH)
 export TUXCONFIG:=$(CURDIR)/t
 export FLDTBLDIR32=$(TUXDIR)/udataobj:$(CURDIR)
+# 22.1 moved SRVCNM and friends out of tpadm into Usysfl32
+ifneq ($(wildcard $(TUXDIR)/udataobj/Usysfl32),)
+export FIELDTBLS32=tpadm,Usysfl32,demo
+else
 export FIELDTBLS32=tpadm,demo
+endif
 
 default: t
 	-tmunloadcf
