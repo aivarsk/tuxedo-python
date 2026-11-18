@@ -62,4 +62,6 @@ jobs:
           export TUXDIR=/tmp/fuxinst
           export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
           export PYTHONPATH="$(echo "$PWD"/build/lib.*)"
+          export FLDTBLDIR32="$TUXDIR/udataobj:$PWD/demo/py3"
+          export FIELDTBLS32=tpadm,demo
           python3 demo/py3/buf.py < demo/py3/in.ud

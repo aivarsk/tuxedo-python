@@ -6,9 +6,9 @@
 <title>tuxedo-python - Python bindings for Oracle Tuxedo: tpcall, tpacall, FML32, XATMI</title>
 <meta name="description" content="Write Oracle Tuxedo clients and servers in Python. Full XATMI API coverage: tpcall, tpacall, tpgetrply, tpbegin, tpcommit, tpenqueue, tpdequeue, tpadvertise, tpadmcall, FML32 buffers as Python dicts. Works with Oracle Tuxedo 12.x and 22.1, and with the open source Fuxedo.">
 <meta name="keywords" content="Oracle Tuxedo Python, Tuxedo Python bindings, tpcall python, tpacall, XATMI python, FML32 python, tpbegin tpcommit, tpenqueue tpdequeue, tpadvertise, tpadmcall, tpinit tpterm, tpreturn tpforward, tpexport tpimport, Tuxedo server python, Fuxedo python, Modernizing Oracle Tuxedo Applications with Python">
-<link rel="canonical" href="https://aivarsk.github.io/tuxedo-python/">
+<link rel="canonical" href="https://aivarsk.com/tuxedo-python/">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://aivarsk.github.io/tuxedo-python/">
+<meta property="og:url" content="https://aivarsk.com/tuxedo-python/">
 <meta property="og:title" content="tuxedo-python - Python bindings for Oracle Tuxedo">
 <meta property="og:description" content="Write Tuxedo clients and servers in Python. tpcall, tpacall, tpbegin, tpenqueue, FML32 as dicts. Works with Oracle Tuxedo 12.x/22.1 and Fuxedo.">
 <meta name="twitter:card" content="summary">
@@ -167,6 +167,11 @@ Ffloatev32 Ffprint32 Fextread32<br>
 userlog
 </p>
 
+<p>For the story of what those flags actually change inside the
+kernel, see <a
+href="https://aivarsk.com/2021/07/07/tpcall-flags/">investigating the
+tpcall flags</a>.</p>
+
 <p class="api">
 <strong>Flags and constants</strong> (109, mirroring the C headers):
 TPNOFLAGS TPNOBLOCK TPNOREPLY TPNOTRAN TPNOTIME TPGETANY TPNOCHANGE
@@ -221,11 +226,17 @@ MIB administration, global transactions, and /Q pipelines.</p>
 
 <p>The same author builds <a
 href="https://aivarsk.com/2024/05/01/monitoring-tuxedo-with-ebpf/">eBPF
-and /proc based monitoring for Tuxedo IPC queues</a> (ipcqmon) and runs
-<a href="https://aivarsk.github.io/tuxedo-training/">hands-on Tuxedo
-training</a> that goes well past the official documentation: internals,
-system-call level behavior, and almost two decades of keeping C++ Tuxedo
-applications alive.</p>
+and /proc based monitoring for Tuxedo IPC queues</a> (ipcqmon), has run
+<a
+href="https://aivarsk.com/2016/01/21/diy-tuxedo-monitoring/">TSAM-style
+instrumentation on Tuxedo's own extension points</a> in production, and
+writes behavior down to the system calls, like <a
+href="https://aivarsk.com/2020/10/06/tuxedo-queues/">why a full queue
+means one-second sleeps that bubble up through the domain</a>. The same
+person runs <a href="https://aivarsk.com/tuxedo-training/">hands-on
+Tuxedo training</a> that goes well past the official documentation:
+internals, system-call level behavior, and almost two decades of keeping
+C++ Tuxedo applications alive.</p>
 
 <footer>
 <p>tuxedo-python is MIT licensed. Oracle Tuxedo is a trademark of Oracle
