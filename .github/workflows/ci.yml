@@ -116,6 +116,18 @@ jobs:
           python3 -c "import tuxedo; print('tuxedo import ok')"
           python3 -c "import tuxedowsc; print('tuxedowsc import ok')"
 
+      - name: Install the module for the system Python too
+        # Oracle's tmboot boots servers with a sanitized environment, so
+        # booted Python servers run /usr/bin/python3, not the setup-python
+        # interpreter; the module and libtux must resolve there as well.
+        # The machine ENVFILE in the demo carries LD_LIBRARY_PATH to the
+        # booted servers.
+        run: |
+          sudo apt-get update && sudo apt-get install -y python3-dev
+          /usr/bin/python3 -m pip install --user --break-system-packages pybind11 setuptools wheel
+          rm -rf build
+          TUXDIR="$TUXDIR" /usr/bin/python3 -m pip install --user --break-system-packages .
+
       - name: Run demo/py3 end to end
         run: |
           export PATH="$TUXDIR/bin:$PATH"

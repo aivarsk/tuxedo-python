@@ -31,9 +31,15 @@ ubbconfig: ubbconfig.in
           | sed s:@UNAME@:`uname -n`:g \
           | sed s:@CURDIR@:$(CURDIR):g > $@
 
-t: ubbconfig
+t: ubbconfig envfile
 	tmloadcf -y $<
+
+# Booted servers do not inherit the caller's environment on every
+# platform (Oracle's tmboot sanitizes it), so the machine ENVFILE carries
+# PATH and LD_LIBRARY_PATH to the servers explicitly.
+envfile:
+	printf 'PATH=%s\nLD_LIBRARY_PATH=%s\n' "$(PATH)" "$(LD_LIBRARY_PATH)" > $@
 
 clean:
 	-tmipcrm -y
-	-rm -rf *.o ubbconfig t ULOG.* access.* stdout stderr .adm
+	-rm -rf *.o ubbconfig envfile t ULOG.* access.* stdout stderr .adm
