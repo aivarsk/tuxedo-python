@@ -891,7 +891,7 @@ PYBIND11_MODULE(tuxedowsc, m) {
   register_exceptions(m);
 
   // Poor man's namedtuple
-  py::class_<pytpreply>(m, "TpReply")
+  py::class_<pytpreply>(m, "TpReply", py::module_local())
       .def_readonly("rval", &pytpreply::rval)
       .def_readonly("rcode", &pytpreply::rcode)
       .def_readonly("data", &pytpreply::data)
@@ -909,7 +909,7 @@ PYBIND11_MODULE(tuxedowsc, m) {
         }
       });
 
-  py::class_<TPQCTL>(m, "TPQCTL")
+  py::class_<TPQCTL>(m, "TPQCTL", py::module_local())
       .def(py::init([](long flags, long deq_time, long priority, long exp_time,
                        long urcode, long delivery_qos, long reply_qos,
                        const char *msgid, const char *corrid,
