@@ -5,10 +5,13 @@ Tuxedo-Python
 .. image:: https://github.com/aivarsk/tuxedo-python/workflows/CI/badge.svg
     :target: https://github.com/aivarsk/tuxedo-python
 
-Python3 bindings for writing Oracle Tuxedo clients and servers. With Python2 support. With a book Modernizing Oracle Tuxedo Applications with Python:
+Python bindings for writing Oracle Tuxedo clients and servers in Python 3.
+There is a book, `Modernizing Oracle Tuxedo Applications with Python
+<https://amzn.to/3ljktiH>`_:
 
-.. image:: https://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&MarketPlace=US&ASIN=180107058X&ServiceVersion=20070822&ID=AsinImage&WS=1&Format=_SL160_&tag=aivarsk-20
+.. image:: https://aivarsk.com/book-cover.jpg
     :target: https://amzn.to/3ljktiH
+    :alt: Modernizing Oracle Tuxedo Applications with Python by Aivars Kalvans
 
 Why?
 ----
@@ -25,7 +28,11 @@ But I realized that's too much of C for me, so I decided to write my own Python 
 Supported platforms
 -------------------
 
-The code is tested on the latest versions of Ubuntu and Oracle Linux using GCC 8 compiler. It should work on other Linux distributions and other UNIXes with no or minor adjustments.
+The module builds and runs with current Python 3 releases (3.9 through
+3.14) against Oracle Tuxedo 12.2.x and 22.1, and against `Fuxedo
+<https://fuxedo.io>`_. Verified on Linux with GCC and Clang. It should
+work on other Linux distributions and other UNIXes with no or minor
+adjustments.
 
 Windows runtime requirements (experimental)
 -------------------------------------------
@@ -40,12 +47,18 @@ Python 3.8.3 fails to import the module `similar to <https://github.com/psycopg/
 
   ImportError: DLL load failed while importing tuxedo: The specified module could not be found.
 
-Alternatives to Oracle Tuxedo
------------------------------
+Fuxedo: the open source alternative
+-----------------------------------
 
-Tuxedo-Python can also be used with `Open Source alternative to Oracle Tuxedo called Fuxedo <https://github.com/fuxedo/fuxedo>`_. Just export ``TUXDIR`` pointing to the folder where `Fuxedo <http://fuxedo.io>`_ is installed everything should work.
+The same module works unchanged with `Fuxedo <https://fuxedo.io>`_, the
+open source alternative to Oracle Tuxedo. Export ``TUXDIR`` pointing at
+the Fuxedo installation and the ``tuxedo`` module, servers, clients and
+the demo all work the same way. It is API-compatible and
+command-compatible with Oracle Tuxedo, without the license cost.
 
-All demo code provided with the module works with both Oracle Tuxedo and Fuxedo and you can avoid vendor lock-in by using Python and Tuxedo-Python module.
+All demo code provided with the module runs against both Oracle Tuxedo
+and Fuxedo, so you can avoid vendor lock-in by writing Python on top of
+XATMI instead of committing to one vendor's middleware.
 
 General
 -------
@@ -283,6 +296,115 @@ Demo
 - ``mem.py`` multi-threaded in-memory cache
 - ``db.py`` Access Oracle Database using cx_Oracle module within global transaction
 - ``buf.py`` Demo of tpimport/tpexport and FML32 identifiers
+
+Troubleshooting
+---------------
+
+``ImportError: libengine.so: cannot enable executable stack``
+    Oracle Tuxedo 12.x ships ``libengine.so`` with an executable-stack
+    ELF header (RWE ``GNU_STACK``), and modern glibc refuses to load it
+    into a Python process. Clear the flag once per installation:
+
+    .. code:: sh
+
+      execstack -c $TUXDIR/lib/libengine.so $TUXDIR/lib/libsecssl.so
+
+    (``execstack`` comes from the ``prelink`` package; the libraries do
+    not actually execute on the stack, the header is an artifact of old
+    assembly objects.)
+
+22.1 on older distributions
+    22.1 binaries need ``libnsl.so.2``; install the ``libnsl2`` package
+    or extract it next to the installation and extend
+    ``LD_LIBRARY_PATH``. On 22.1 the field tables moved: use
+    ``FIELDTBLS32=tpadm,Usysfl32``.
+
+Workstation clients
+-------------------
+
+Build with ``-lwsc`` (the ``tuxedowsc`` module) and connect with
+``WSNADDR`` set, no local ``TUXCONFIG`` needed:
+
+.. code:: python
+
+  import tuxedowsc as t
+  t.tpinit(None)
+  print(t.tpcall('PING', b'hi').data)
+
+Message queuing (/Q)
+--------------------
+
+``tpenqueue()`` and ``tpdequeue()`` with ``TPQCTL`` are exposed:
+
+.. code:: python
+
+  ctl = t.TPQCTL()
+  t.tpenqueue('QSPACE', 'Q1', ctl, b'payload')
+  _, _, msg = t.tpdequeue('QSPACE', 'Q1', t.TPQCTL())
+
+API reference
+-------------
+
+Every XATMI entry point exposed by the module, grouped the way the C
+headers group them. If you are searching for a specific call (``tpcall``,
+``tpacall``, ``tpgetrply``, ``tpbegin``, ...), it is here.
+
+Service calls:
+``tpcall`` ``tpacall`` ``tpgetrply`` ``tpforward`` ``tpreturn``.
+The module returns ``(rval, rcode, data)`` so TPFAIL responses keep
+their data.
+
+Advertisement and server lifecycle:
+``tpadvertise`` ``tpadvertisex`` ``tpunadvertise`` (via
+``tpadvertisex`` flags) ``tpopen`` ``tpclose`` — ``t.run()`` drives the
+server main loop and calls ``tpsvrinit``/``tpsvrdone``/
+``tpsvrthrinit``/``tpsvrthrdone`` on your object.
+
+Sessions and context:
+``tpinit`` ``tpterm`` ``tpappthrinit`` ``tpappthrterm`` ``tpsuspend``
+``tpresume`` ``tpgetctxt`` ``tpsetctxt`` (single-context semantics)
+``userlog``.
+
+Transactions:
+``tpbegin`` ``tpcommit`` ``tpabort`` ``tpgetlev``.
+
+Buffers:
+``tpalloc`` ``tprealloc`` ``tpfree`` ``tptypes`` (implicit)
+``tpexport`` ``tpimport``.
+
+Administration:
+``tpadmcall`` (offline MIB against TUXCONFIG), ``.TMIB`` service calls
+for the live bulletin board.
+
+Queueing:
+``tpenqueue`` ``tpdequeue`` with ``TPQCTL``.
+
+Events:
+``tppost`` (EventBroker posting; raises ``TPESYSTEM`` where the
+underlying platform lacks the broker).
+
+FML32 helpers:
+``Fldid32`` ``Fname32`` ``Fldno32`` ``Fldtype32`` ``Fmkfldid32``
+``Fboolpr32`` ``Fboolev32`` ``Ffloatev32`` ``Ffprint32`` ``Fextread32``
+with ``Ferror32`` reported through ``Fml32Exception``. Buffers move
+between Python ``dict`` and FML32, including nested FML32 fields.
+
+Oracle XA:
+``xaoSvcCtx`` for handing the transaction context to ``cx_Oracle``.
+
+Flags and error codes (109 constants) mirror the C headers:
+``TPNOFLAGS`` ``TPNOBLOCK`` ``TPNOREPLY`` ``TPNOTRAN`` ``TPNOTIME``
+``TPGETANY`` ``TPNOCHANGE`` ``TPNOCOPY`` ``TPMULTICONTEXTS``
+``TPSUCCESS`` ``TPFAIL`` ``TPEXIT`` and the ``TPE*`` error codes
+(``TPENOENT`` ``TPESYSTEM`` ``TPETIME`` ``TPESVCFAIL`` ``TPEPROTO``
+``TPETRAN`` ...); ``TPBLK_NEXT`` ``TPBLK_ALL`` ``TPBLK_SECOND``
+``TPBLK_MILLISECOND`` for ``tpsblktime``/``tpgblktime``;
+``TPSINGLETON`` and ``TPSECONDARYRQ`` for ``tpadvertisex``;
+``TPQBEFOREMSGID`` ``TPQCORRID`` ``TPQGETBYMSGID`` ``TPQGETBYCORRID``
+``TPQWAIT`` ``TPQPEEK`` and the ``QME*`` queue diagnostics for /Q;
+``FLD_STRING`` ``FLD_CARRAY`` ``FLD_CHAR`` ``FLD_SHORT`` ``FLD_LONG``
+``FLD_FLOAT`` ``FLD_DOUBLE`` ``FLD_FML32`` ``BADFLDID`` for FML32;
+``MIB_PREIMAGE`` ``MIB_LOCAL`` ``MIB_SELF`` for MIB updates.
 
 TODO
 ----

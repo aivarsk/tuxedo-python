@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tuxedo-python - Python bindings for Oracle Tuxedo: tpcall, tpacall, FML32, XATMI</title>
+<meta name="description" content="Write Oracle Tuxedo clients and servers in Python. Full XATMI API coverage: tpcall, tpacall, tpgetrply, tpbegin, tpcommit, tpenqueue, tpdequeue, tpadvertise, tpadmcall, FML32 buffers as Python dicts. Works with Oracle Tuxedo 12.x and 22.1, and with the open source Fuxedo.">
+<meta name="keywords" content="Oracle Tuxedo Python, Tuxedo Python bindings, tpcall python, tpacall, XATMI python, FML32 python, tpbegin tpcommit, tpenqueue tpdequeue, tpadvertise, tpadmcall, tpinit tpterm, tpreturn tpforward, tpexport tpimport, Tuxedo server python, Fuxedo python, Modernizing Oracle Tuxedo Applications with Python">
+<link rel="canonical" href="https://aivarsk.github.io/tuxedo-python/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://aivarsk.github.io/tuxedo-python/">
+<meta property="og:title" content="tuxedo-python - Python bindings for Oracle Tuxedo">
+<meta property="og:description" content="Write Tuxedo clients and servers in Python. tpcall, tpacall, tpbegin, tpenqueue, FML32 as dicts. Works with Oracle Tuxedo 12.x/22.1 and Fuxedo.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tuxedo-python - Python bindings for Oracle Tuxedo">
+<meta name="twitter:description" content="The XATMI API from Python: tpcall, tpacall, tpbegin, FML32, /Q queues, MIB administration. Oracle Tuxedo and Fuxedo.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "tuxedo-python",
+  "alternateName": "Python bindings for Oracle Tuxedo",
+  "description": "Python bindings for writing Oracle Tuxedo clients and servers: tpcall, tpacall, tpgetrply, tpbegin, tpcommit, tpabort, tpenqueue, tpdequeue, tpadvertise, tpadvertisex, tpadmcall, tpinit, tpterm, tpforward, tpreturn, tpexport, tpimport, FML32 buffers mapped to Python dicts, boolean expressions, and /Q message queues. Works with Oracle Tuxedo 12.x and 22.1 and with the open source Fuxedo.",
+  "url": "https://aivarsk.github.io/tuxedo-python/",
+  "codeRepository": "https://github.com/aivarsk/tuxedo-python",
+  "license": "https://opensource.org/licenses/MIT",
+  "programmingLanguage": ["Python", "C++"],
+  "applicationCategory": "Transaction processing middleware bindings",
+  "operatingSystem": "Linux",
+  "isBasedOn": "X/Open XATMI specification"
+}
+</script>
+<style>
+  body { background: #e9e4d3;
+         font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a;
+         margin: 0; padding: 2.5em 1.2em; line-height: 1.55; }
+  .page { max-width: 46em; margin: 0 auto; background: #fbf7ea;
+          border: 1px solid #8f8871;
+          box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #b3ab90,
+                      3px 3px 0 rgba(0,0,0,0.12);
+          padding: 2.2em 2.6em; }
+  h1 { text-align: center; margin-bottom: 0; font-size: 2em; color: #14120c;
+       font-family: 'Courier New', monospace; }
+  .tagline { text-align: center; font-style: italic; color: #5c5540;
+             margin-top: 0.2em; font-family: 'Courier New', monospace; }
+  h2 { font-size: 0.95em; margin-top: 2em;
+       font-family: 'Courier New', monospace; font-weight: bold;
+       background: #10312a; color: #9fe8b0; padding: 5px 10px;
+       border: 1px solid #0a201b;
+       box-shadow: inset 1px 1px 0 #2a5a4c, inset -1px -1px 0 #071a15; }
+  a { color: #8f1d14; }
+  a:hover { color: #c0392b; }
+  .button { display: block; text-align: center; margin: 2.2em 0; }
+  .button a { display: inline-block; background: #ded8c2; color: #14120c;
+              padding: 0.55em 1.6em; text-decoration: none; font-size: 1.05em;
+              font-family: 'Courier New', monospace; font-weight: bold;
+              border: 2px solid;
+              border-color: #ffffff #6f6852 #6f6852 #ffffff; }
+  .button a:hover { background: #eae4cf; }
+  .button a:active { border-color: #6f6852 #ffffff #ffffff #6f6852; }
+  pre { background: #10312a; color: #c8f0d0; padding: 0.9em 1.1em;
+        border: 1px solid #0a201b; overflow-x: auto;
+        font-family: 'Courier New', monospace; font-size: 0.88em;
+        box-shadow: inset 1px 1px 0 #2a5a4c, inset -1px -1px 0 #071a15; }
+  pre .prompt { color: #7fbf8f; }
+  code { background: #efe9d6; padding: 0 4px; border: 1px solid #cfc7ab;
+         font-size: 0.92em; }
+  pre code { background: none; border: none; padding: 0; color: inherit; }
+  .api { font-family: 'Courier New', monospace; font-size: 0.86em;
+         line-height: 1.9; }
+  .book { text-align: center; margin: 2em 0; }
+  .book img { border: 1px solid #8f8871; max-width: 220px;
+              box-shadow: 3px 3px 0 rgba(0,0,0,0.15); }
+  footer { margin-top: 3em; font-size: 0.9em; color: #5c5540;
+           border-top: 1px solid #b3ab90; padding-top: 1em; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>tuxedo-python</h1>
+<p class="tagline">Oracle Tuxedo, scripted from Python</p>
+
+<p><strong>tuxedo-python</strong> is a Python module for writing
+<strong>Oracle Tuxedo</strong> clients and servers. It wraps the X/Open
+XATMI API with pybind11 and maps Tuxedo's typed buffers onto Python
+types: <code>FML32</code> becomes a <code>dict</code>, <code>STRING</code>
+a <code>str</code>, <code>CARRAY</code> a <code>bytes</code>. Servers are
+Python classes advertised with <code>tpadvertise()</code>, booted by
+<code>tmboot</code> like any C server, and they can run multithreaded
+with per-thread initialization.</p>
+
+<p>The same module runs against <a href="https://fuxedo.io">Fuxedo</a>,
+the open source alternative to Oracle Tuxedo, so code written on this
+module is not tied to one vendor's middleware.</p>
+
+<p class="button"><a href="https://github.com/aivarsk/tuxedo-python">Get
+tuxedo-python on GitHub</a></p>
+
+<h2>Client in ten lines</h2>
+<pre><code><span class="prompt">>>></span> import tuxedo as t
+<span class="prompt">>>></span> t.tpinit(None)
+<span class="prompt">>>></span> rval, rcode, data = t.tpcall('.TMIB', {
+<span class="prompt">...</span>     'TA_CLASS': 'T_SVCGRP', 'TA_OPERATION': 'GET'})
+<span class="prompt">>>></span> data['TA_SERVICENAME']
+['GETRATE', 'GETRATE', 'RELOAD_10', ...]</code></pre>
+
+<p><code>tpcall()</code> and <code>tpacall()</code>/<code>tpgetrply()</code>
+return a <code>(rval, rcode, data)</code> tuple instead of raising on
+<code>TPFAIL</code>, because a failed service often returns the most
+interesting data. Errors raise <code>XatmiException</code> or
+<code>Fml32Exception</code> with a <code>.code</code> you compare against
+<code>TPENOENT</code>, <code>TPESYSTEM</code>, <code>TPETIME</code>,
+<code>TPESVCFAIL</code> and the rest of the <code>TPE*</code> codes.</p>
+
+<h2>Server in a class</h2>
+<pre><code>#!/usr/bin/env python3
+import sys
+import tuxedo as t
+
+class Server:
+    def tpsvrinit(self, args):
+        t.tpadvertise('ECHO')
+        return 0
+
+    def ECHO(self, args):
+        return t.tpreturn(t.TPSUCCESS, 0, args)
+
+if __name__ == '__main__':
+    t.run(Server(), sys.argv)</code></pre>
+
+<p>Mark the file executable, list it in <code>UBBCONFIG</code> like a C
+server, and <code>tmboot</code> starts it. <code>tpsvrinit</code>,
+<code>tpsvrdone</code>, <code>tpsvrthrinit</code>, and
+<code>tpsvrthrdone</code> map to methods on your object, so a
+<code>MINDISPATCHTHREADS=4</code> server gets a real per-thread setup
+hook.</p>
+
+<h2>Full API surface</h2>
+
+<p>Every XATMI entry point the module exposes, for the searchers and the
+curious:</p>
+
+<p class="api">
+<strong>Calls:</strong>
+tpcall tpacall tpgetrply tpforward tpreturn tpunadvertise<br>
+<strong>Lifecycle:</strong>
+tpinit tpterm tpappthrinit tpappthrterm tpsuspend tpresume
+tpgetctxt tpsetctxt run<br>
+<strong>Advertise:</strong>
+tpadvertise tpadvertisex (TPSINGLETON TPSECONDARYRQ)<br>
+<strong>Transactions:</strong>
+tpbegin tpcommit tpabort tpgetlev xaoSvcCtx<br>
+<strong>Buffers:</strong>
+tpalloc tprealloc tpfree tpexport tpimport<br>
+<strong>Admin:</strong>
+tpadmcall (offline MIB) .TMIB (live MIB, T_DOMAIN T_MACHINE T_GROUP
+T_SERVER T_SERVICE T_SVCGRP T_QUEUE)<br>
+<strong>Queues:</strong>
+tpenqueue tpdequeue TPQCTL<br>
+<strong>Events:</strong>
+tppost<br>
+<strong>FML32:</strong>
+Fldid32 Fname32 Fldno32 Fldtype32 Fmkfldid32 Fboolpr32 Fboolev32
+Ffloatev32 Ffprint32 Fextread32<br>
+<strong>Logging:</strong>
+userlog
+</p>
+
+<p class="api">
+<strong>Flags and constants</strong> (109, mirroring the C headers):
+TPNOFLAGS TPNOBLOCK TPNOREPLY TPNOTRAN TPNOTIME TPGETANY TPNOCHANGE
+TPNOCOPY TPMULTICONTEXTS TPSUCCESS TPFAIL TPEXIT TPEABORT TPEBADDESC
+TPEBLOCK TPEDIAGNOSTIC TPEEVENT TPEHAZARD TPEHEURISTIC TPEINVAL
+TPEITYPE TPELIMIT TPEMATCH TPEMIB TPENOENT TPENOSECONDARYRQ
+TPENOSINGLETON TPEOS TPEOTYPE TPEPERM TPEPROTO TPERELEASE TPERMERR
+TPESVCERR TPESVCFAIL TPESYSTEM TPETIME TPETRAN TPGOTSIG TPEX_STRING
+TPABSOLUTE TPACK TPACK_INTL TPCONV TPBLK_NEXT TPBLK_ALL TPBLK_SECOND
+TPBLK_MILLISECOND TPQBEFOREMSGID TPQCORRID TPQMSGID TPQPEEK TPQWAIT
+TPQGETBYMSGID TPQGETBYCORRID TPQTOP TPQPRIORITY TPQREPLYQ TPQFAILUREQ
+TPQTIME_ABS TPQTIME_REL TPQEXPTIME_ABS TPQEXPTIME_REL TPQEXPTIME_NONE
+TPQQOSPERSISTENT TPQQOSNONPERSISTENT TPQQOSDEFAULTPERSIST
+TPQDELIVERYQOS TPQREPLYQOS FLD_STRING FLD_CARRAY FLD_CHAR FLD_SHORT
+FLD_LONG FLD_FLOAT FLD_DOUBLE FLD_FML32 BADFLDID QMEINVAL QMEOS
+QMESYSTEM QMEPROTO QMENOSPACE QMENOMSG QMEINUSE QMEINVHANDLE QMEBADQUEUE
+QMEBADMSGID QMEBADRMID QMENOTOPEN QMENOTA QMENOTOPEN QMESHARE QMERELEASE
+QMEABORTED MIB_PREIMAGE MIB_LOCAL MIB_SELF TAOK TAPARTIAL TAUPDATED
+</p>
+
+<h2>Buffer mapping</h2>
+
+<p><code>FML32</code> maps to a dict of field name to list of values;
+occurrences are lists, single values become one-element lists on the way
+back. Nested <code>FLD_FML32</code> fields map to nested dicts, so a
+<code>VIEW32</code>-shaped payload or a <code>TA_*</code> MIB row reads
+like JSON. <code>tpexport()</code> and <code>tpimport()</code> round-trip
+buffers through bytes for storage or wire transfer, with
+<code>TPEX_STRING</code> base64 when you need text.</p>
+
+<h2>Works with Oracle Tuxedo and Fuxedo</h2>
+
+<p>Build against an Oracle Tuxedo 12.2.x or 22.1 installation by pointing
+<code>TUXDIR</code> at it, or against <a
+href="https://fuxedo.io">Fuxedo</a> for a license-free stack; the module,
+the demos, and the servers behave the same. On 12.x, if the loader
+complains that <code>libengine.so</code> requires an executable stack,
+run <code>execstack -c $TUXDIR/lib/libengine.so</code> once (the header
+is an artifact, the library does not execute on the stack).</p>
+
+<div class="book">
+<a href="https://amzn.to/3ljktiH"><img src="book-cover.jpg"
+alt="Modernizing Oracle Tuxedo Applications with Python, book cover"></a>
+<p>There is a book:
+<strong><a href="https://amzn.to/3ljktiH">Modernizing Oracle Tuxedo
+Applications with Python</a></strong> by Aivars Kalv&amacr;ns. It builds
+real services on this module: HTTP APIs inside Tuxedo servers, caches,
+MIB administration, global transactions, and /Q pipelines.</p>
+</div>
+
+<h2>Monitoring and training</h2>
+
+<p>The same author builds <a
+href="https://aivarsk.com/2024/05/01/monitoring-tuxedo-with-ebpf/">eBPF
+and /proc based monitoring for Tuxedo IPC queues</a> (ipcqmon) and runs
+<a href="https://aivarsk.github.io/tuxedo-training/">hands-on Tuxedo
+training</a> that goes well past the official documentation: internals,
+system-call level behavior, and almost two decades of keeping C++ Tuxedo
+applications alive.</p>
+
+<footer>
+<p>tuxedo-python is MIT licensed. Oracle Tuxedo is a trademark of Oracle
+Corporation; this project is an independent binding and is not affiliated
+with or endorsed by Oracle.</p>
+</footer>
+
+</div>
+</body>
+</html>

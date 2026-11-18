@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+# Builds the module against Fuxedo (the open source, freely
+# redistributable Tuxedo implementation), boots the demo domain and runs
+# the buffer and end-to-end demo checks. Oracle Tuxedo 12.x/22.1
+# compatibility is verified by the maintainer on private infrastructure
+# because the Oracle installer cannot be fetched in CI.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install build dependencies
+        run: pip install pybind11 setuptools
+
+      - name: Fetch and build Fuxedo
+        run: |
+          git clone --depth 1 https://github.com/fuxedo/fuxedo.git /tmp/fuxedo
+          cd /tmp/fuxedo
+          ./autogen.sh
+          ./configure --prefix=/tmp/fuxinst
+          make -j"$(nproc)"
+          make check
+          make install
+
+      - name: Build the tuxedo module against Fuxedo
+        run: |
+          export TUXDIR=/tmp/fuxinst
+          python setup.py build
+
+      - name: Run demo/py3 end to end
+        run: |
+          export TUXDIR=/tmp/fuxinst
+          export PATH="$TUXDIR/bin:$PATH"
+          export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
+          export PYTHONPATH="$(echo "$PWD"/build/lib.*):$PWD/demo/py3"
+          export TUXEDO_PYTHON="$PWD"
+          cd demo/py3
+          make default
+        timeout-minutes: 10
+
+      - name: Run buffer API self-check
+        run: |
+          export TUXDIR=/tmp/fuxinst
+          export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
+          export PYTHONPATH="$(echo "$PWD"/build/lib.*)"
+          python3 demo/py3/buf.py < demo/py3/in.ud

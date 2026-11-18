@@ -5,7 +5,7 @@ import sys
 import setuptools
 
 __name__ = 'tuxedo'
-__version__ = '1.0.10'
+__version__ = '1.0.11'
 
 class get_pybind_include(object):
     """Helper class to determine the pybind11 include path
@@ -32,6 +32,9 @@ ext_modules = [
             get_pybind_include(user=True),
         ],
         library_dirs=[os.path.join(os.environ['TUXDIR'], 'lib')],
+        # libengine carries internal dispatch code that libtux pulls in
+        # on the 12.x lineage; its RWE stack header breaks modern loaders
+        # (see the training/README note about the stack fix)
         libraries=['tux', 'fml32', 'tmib', 'engine'],
         language='c++'
     ),
@@ -137,7 +140,6 @@ setup(
         'Programming Language :: C++',
         'Operating System :: POSIX',
         'Operating System :: Microsoft :: Windows',
-        'License :: OSI Approved :: MIT License',
         'Topic :: Software Development',
     ],
     zip_safe=False,
