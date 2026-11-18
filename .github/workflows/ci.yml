@@ -46,7 +46,8 @@ jobs:
           export TUXDIR=/tmp/fuxinst
           python3 -m pip install .
           export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
-          python3 -c "import tuxedo, tuxedowsc; print('module import ok')"
+          python3 -c "import tuxedo; print('tuxedo import ok')"
+          python3 -c "import tuxedowsc; print('tuxedowsc import ok')"
 
       - name: Run demo/py3 end to end
         run: |
@@ -112,7 +113,8 @@ jobs:
         run: |
           python3 -m pip install .
           export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
-          python3 -c "import tuxedo, tuxedowsc; print('module import ok')"
+          python3 -c "import tuxedo; print('tuxedo import ok')"
+          python3 -c "import tuxedowsc; print('tuxedowsc import ok')"
 
       - name: Run demo/py3 end to end
         run: |

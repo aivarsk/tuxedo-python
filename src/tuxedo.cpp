@@ -115,8 +115,13 @@ struct context {
     if (tpgetctxt(&tpcontext, 0) != -1 && tpcontext >= 0) {
       return;
     }
+#if !TUXEDO_WSC
     _init(is_client ? tpinit : tpappthrinit, nullptr, "tpsysadm", nullptr,
           nullptr, TPMULTICONTEXTS);
+#else
+    // no server threads exist in a workstation client build
+    _init(tpinit, nullptr, "tpsysadm", nullptr, nullptr, TPMULTICONTEXTS);
+#endif
   }
   context(std::function<int(TPINIT *)> initfunc, const char *usrname,
           const char *cltname, const char *passwd, const char *grpname,
@@ -565,6 +570,22 @@ static pytpreply pytpgetrply(int cd, long flags) {
 #define MODULE "tuxedowsc"
 #endif
 
+static pytpreply pytpadmcall(py::object idata, long flags) {
+  auto in = from_py(idata);
+  xatmibuf out("FML32", 1024);
+  {
+    py::gil_scoped_release release;
+    int rc = tpadmcall(*in.fbfr(), out.fbfr(), flags);
+    if (rc == -1) {
+      if (tperrno != TPESVCFAIL) {
+        throw xatmi_exception(tperrno);
+      }
+    }
+  }
+  return pytpreply(tperrno, tpurcode, out);
+}
+
+
 #if !TUXEDO_WSC
 struct svcresult {
   int rval;
@@ -600,21 +621,6 @@ static void pytpreturn(int rval, long rcode, py::object data, long flags) {
 static void pytpforward(const std::string &svc, py::object data, long flags) {
   tsvcresult.with_state(svcresult::FORWARD).with_data(data);
   strncpy(tsvcresult.name, svc.c_str(), sizeof(tsvcresult.name));
-}
-
-static pytpreply pytpadmcall(py::object idata, long flags) {
-  auto in = from_py(idata);
-  xatmibuf out("FML32", 1024);
-  {
-    py::gil_scoped_release release;
-    int rc = tpadmcall(*in.fbfr(), out.fbfr(), flags);
-    if (rc == -1) {
-      if (tperrno != TPESVCFAIL) {
-        throw xatmi_exception(tperrno);
-      }
-    }
-  }
-  return pytpreply(tperrno, tpurcode, out);
 }
 
 int tpsvrinit(int argc, char *argv[]) {
@@ -1073,15 +1079,15 @@ PYBIND11_MODULE(tuxedowsc, m) {
         "Tuxedo server.",
         py::arg("svcname"), py::arg("flags") = 0);
 #endif
+#if !TUXEDO_WSC
+  // server-process surface: the workstation client build exposes no
+  // server functions at all
   m.def(
       "tpadvertise", [](const char *svcname) { pytpadvertisex(svcname, 0); },
       "Routine for advertising a service name", py::arg("svcname"));
 
   m.def("run", &pyrun, "Run Tuxedo server", py::arg("server"), py::arg("args"),
         py::arg("rmname") = "NONE");
-
-  m.def("tpadmcall", &pytpadmcall, "Administers unbooted application",
-        py::arg("idata"), py::arg("flags") = 0);
 
   m.def("tpreturn", &pytpreturn, "Routine for returning from a service routine",
         py::arg("rval"), py::arg("rcode"), py::arg("data"),
@@ -1125,8 +1131,12 @@ PYBIND11_MODULE(tuxedowsc, m) {
             (*xao_svc_ctx_ptr)(nullptr));
       },
       "Returns the OCI service handle for a given XA connection");
+#endif  // !TUXEDO_WSC
 
 #endif
+
+  m.def("tpadmcall", &pytpadmcall, "Administers unbooted application",
+        py::arg("idata"), py::arg("flags") = 0);
 
   m.def("tpenqueue", &pytpenqueue, "Routine to enqueue a message.",
         py::arg("qspace"), py::arg("qname"), py::arg("ctl"), py::arg("data"),
