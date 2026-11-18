@@ -652,26 +652,34 @@ int tpsvrthrinit(int argc, char *argv[]) {
   if (!thread_context) {
     thread_context.reset(new context());
   }
-  // Create a new Python thread
-  // otherwise pybind11 creates and deletes one
-  // and messes up threading.local
-  auto const &internals = pybind11::detail::get_internals();
-  PyThreadState_New(internals.istate);
+  // Bind a persistent PyThreadState to this dispatch thread before any
+  // Python access. Otherwise pybind11 creates a temporary thread state
+  // for every gil_scoped_acquire and destroys it on release, which messes
+  // up threading.local and segfaults multi-threaded servers on Python
+  // 3.11 on the first service call (verified with faulthandler).
+  PyThreadState *tstate = PyThreadState_New(PyInterpreterState_Main());
+  if (tstate == nullptr) {
+    return -1;
+  }
+  PyEval_RestoreThread(tstate);
 
+  int rc = 0;
   if (tpopen() == -1) {
     userlog(const_cast<char *>("Failed tpopen() = %d / %s"), tperrno,
             tpstrerror(tperrno));
-    return -1;
-  }
-  py::gil_scoped_acquire acquire;
-  if (hasattr(server, __func__)) {
+    rc = -1;
+  } else if (hasattr(server, __func__)) {
     std::vector<std::string> args;
     for (int i = 0; i < argc; i++) {
       args.push_back(argv[i]);
     }
-    return server.attr(__func__)(args).cast<int>();
+    rc = server.attr(__func__)(args).cast<int>();
   }
-  return 0;
+  // release the GIL; the thread state stays bound to this thread so
+  // later gil_scoped_acquire calls reuse it instead of creating a
+  // temporary one
+  PyEval_SaveThread();
+  return rc;
 }
 void tpsvrthrdone() {
   py::gil_scoped_acquire acquire;
@@ -690,14 +698,19 @@ void PY(TPSVCINFO *svcinfo) {
     auto in = xatmibuf(svcinfo);
     auto idata = to_py(in);
 
-    auto &&func = server.attr(svcinfo->name);
-    auto &&code = func.attr("__code__");
-    long argcount = (code.attr("co_argcount")
+    py::object func = server.attr(svcinfo->name);
+    py::object code = func.attr("__code__");
+    long argcount = py::cast<long>(code.attr("co_argcount")
 #if PY_MAJOR_VERSION >= 3
-                        + code.attr("co_kwonlyargcount")
+                                        +
+                                        code.attr("co_kwonlyargcount")
 #endif
-			).cast<py::int_>();
-    auto &&args = code.attr("co_varnames")[py::slice(0, argcount, 1)];
+    );
+    // owning copies: binding the temporaries with auto&& left proxies over
+    // freed objects, a use-after-free that only reliably segfaults on
+    // multi-threaded Python 3.11 servers (caught in gdb at args.contains)
+    py::object args =
+        code.attr("co_varnames").cast<py::tuple>()[py::slice(0, argcount, 1)];
     py::dict kwargs;
     if (args.contains(py::str("name"))) {
       kwargs[py::str("name")] = py::str(svcinfo->name);
