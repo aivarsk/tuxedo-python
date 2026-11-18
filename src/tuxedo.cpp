@@ -246,7 +246,7 @@ static py::object to_py(FBFR32 *fbfr, FLDLEN32 buflen = 0) {
   if (buflen == 0) {
     buflen = Fsizeof32(fbfr);
   }
-  std::unique_ptr<char> value(new char[buflen]);
+  std::unique_ptr<char[]> value(new char[buflen]);
 
   for (;;) {
     FLDLEN32 len = buflen;
