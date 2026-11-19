@@ -1,0 +1,70 @@
+name: Nightly against fuxedo master
+
+# Keeps tuxedo-python honest against fuxedo's moving master: builds the
+# latest fuxedo, installs the bindings against it, and runs the demo
+# end to end. The per-push CI pins fuxedo to the last known-good state
+# implicitly (whatever master was at run time); this job is the early
+# warning for fuxedo-side changes that break the bindings.
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-fuxedo-master
+  cancel-in-progress: true
+
+jobs:
+  fuxedo-master:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is where the multi-threaded crash lived; 3.13 as the
+        # current stable middle
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install build dependencies
+        run: pip install pybind11 setuptools wheel
+
+      - name: Fetch and build fuxedo master
+        run: |
+          git clone --depth 1 https://github.com/fuxedo/fuxedo.git /tmp/fuxedo
+          cd /tmp/fuxedo
+          ./autogen.sh
+          ./configure --prefix=/tmp/fuxinst
+          make -j"$(nproc)"
+          make install
+
+      - name: Build and install the tuxedo module against fuxedo master
+        run: |
+          export TUXDIR=/tmp/fuxinst
+          python3 -m pip install .
+          export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
+          python3 -c "import tuxedo; print('tuxedo import ok')"
+          python3 -c "import tuxedowsc; print('tuxedowsc import ok')"
+
+      - name: Run demo/py3 end to end
+        run: |
+          export TUXDIR=/tmp/fuxinst
+          export PATH="$TUXDIR/bin:$PATH"
+          export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
+          cd demo/py3
+          make default
+        timeout-minutes: 10
+
+      - name: Run buffer API self-check
+        run: |
+          export TUXDIR=/tmp/fuxinst
+          export LD_LIBRARY_PATH="$TUXDIR/lib:${LD_LIBRARY_PATH:-}"
+          export FLDTBLDIR32="$TUXDIR/udataobj:$PWD/demo/py3"
+          export FIELDTBLS32=tpadm,demo
+          python3 demo/py3/buf.py < demo/py3/in.ud
